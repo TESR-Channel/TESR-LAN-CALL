@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="TESR Call">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/assets/icon-64.png">
+<link rel="apple-touch-icon" href="/assets/icon-180.png">
+<title>TESR LAN Call</title>
+<style>
+@font-face{font-family:"Chakra Petch";font-weight:600;src:url(/assets/fonts/ChakraPetch-SemiBold.ttf) format("truetype")}
+@font-face{font-family:"Chakra Petch";font-weight:700;src:url(/assets/fonts/ChakraPetch-Bold.ttf) format("truetype")}
+@font-face{font-family:"IBM Plex Sans Thai";font-weight:400;src:url(/assets/fonts/IBMPlexSansThai-Regular.ttf) format("truetype")}
+@font-face{font-family:"IBM Plex Sans Thai";font-weight:600;src:url(/assets/fonts/IBMPlexSansThai-SemiBold.ttf) format("truetype")}
+@font-face{font-family:"IBM Plex Sans Thai";font-weight:700;src:url(/assets/fonts/IBMPlexSansThai-Bold.ttf) format("truetype")}
+:root{--black:#0A0A0A;--bg:#121212;--card:#1A1A1A;--card2:#222222;--line:#2C2C2C;--ink:#F2F2F2;--muted:#A8A8A8;
+--gold:#C9A84C;--goldDeep:#A88A35;--crimson:#8B0000;--red:#B3261E;--green:#23744A;--free:#5CC08A}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Thai","Leelawadee UI",Tahoma,system-ui,sans-serif;-webkit-text-size-adjust:100%}
+button,input,select{font:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.disp{font-family:"Chakra Petch","IBM Plex Sans Thai",sans-serif}
+header{background:var(--black);border-bottom:3px solid var(--crimson);padding:14px 32px;padding-top:calc(14px + env(safe-area-inset-top,0px));display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px}
+.brand{display:flex;align-items:center;gap:16px;min-width:0}
+.brand img{height:38px;width:auto;display:block}
+.brand .app{font-family:"Chakra Petch",sans-serif;font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.02em;line-height:1.1}
+.brand .sub{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
+.hright{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.net{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--free)}
+.net.off{color:#E5736B}
+.net .dot{width:10px;height:10px;border-radius:50%;background:currentColor}
+.ghost{background:none;border:1px solid #3A3A3A;border-radius:999px;padding:8px 16px;color:var(--ink);min-height:44px}
+.ghost:hover{border-color:var(--gold);color:var(--gold)}
+main{max-width:1200px;margin:0 auto;padding:32px;display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+#list{flex:999 1 560px;min-width:0;overflow:hidden}
+.lhead{padding:20px 24px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-family:"Chakra Petch",sans-serif;font-size:24px;font-weight:700}
+h2{margin:0;font-family:"Chakra Petch",sans-serif;font-size:19px;font-weight:700;color:var(--gold)}
+.tools{display:flex;gap:10px;flex-wrap:wrap}
+input[type=search],input[type=text],select{padding:10px 12px;border:1px solid #3A3A3A;border-radius:8px;color:var(--ink);background:var(--card2);font-size:16px;min-height:44px;width:100%}
+.tools input{width:220px}
+.row{padding:18px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:14px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .info{flex:1 1 220px;min-width:0}
+.nm{font-size:18px;font-weight:600;overflow-wrap:anywhere}
+.row.off .nm{color:var(--muted)}
+.meta{font-size:14px;color:var(--muted)}
+.tag{font-size:14px;font-weight:600;padding:4px 12px;border-radius:999px;white-space:nowrap}
+.tag.free{color:var(--free);background:rgba(92,192,138,.12)}
+.tag.busy{color:var(--gold);background:rgba(201,168,76,.14)}
+.tag.off{color:var(--muted);background:#262626}
+.call{font-weight:700;font-size:16px;color:#16110A;background:var(--gold);border:0;border-radius:999px;padding:10px 22px;min-height:44px;display:flex;align-items:center;gap:8px}
+.call:hover{background:#D6B75E}
+.call:disabled{background:#2A2A2A;color:#777;cursor:not-allowed}
+.empty{padding:40px 24px;color:var(--muted);line-height:1.7}
+aside{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:24px}
+aside .card{padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+.fld{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+.chk{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:16px;min-height:44px}
+.chk input{width:22px;height:22px;accent-color:var(--gold)}
+.hist{display:flex;justify-content:space-between;gap:12px;font-size:15px}
+.hist .r{color:var(--muted);text-align:right}
+.hist .miss{color:#E5736B}
+.hist{flex-wrap:wrap;align-items:center}
+.cb{background:none;border:1px solid var(--gold);color:var(--gold);border-radius:999px;padding:4px 12px;font-size:14px;min-height:32px}
+.pair{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.pair img{width:150px;height:150px;border-radius:10px;background:#fff;flex:0 0 auto}
+.pair ol{margin:0;padding-left:20px;font-size:14px;line-height:1.65;color:var(--muted);flex:1 1 160px}
+.url{font-family:"Chakra Petch",monospace;color:var(--gold);font-size:16px;overflow-wrap:anywhere;user-select:all}
+.note{font-size:14px;line-height:1.6;color:var(--muted)}
+.banner{background:var(--crimson);color:#fff;text-align:center;padding:12px 16px;font-weight:600;border:0;width:100%;display:none}
+.banner.show{display:block}
+body.mobile .desk-only{display:none!important}
+body:not(.mobile) .mob-only{display:none!important}
+/* overlays */
+.ov{position:fixed;inset:0;display:none;z-index:10}
+.ov.show{display:flex}
+#incoming{background:var(--crimson);color:#fff;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:32px}
+#incoming .lg{position:absolute;top:calc(24px + env(safe-area-inset-top,0px));left:28px;height:34px}
+.avatar{width:128px;height:128px;border-radius:50%;background:var(--gold);color:var(--black);display:flex;align-items:center;justify-content:center;font-family:"Chakra Petch",sans-serif;font-size:56px;font-weight:700;margin-bottom:12px}
+#incoming .who{font-size:26px;opacity:.95;overflow-wrap:anywhere}
+#incoming h1{font-size:clamp(38px,7vw,64px);margin:0 0 8px;color:#fff}
+#incoming .from{font-size:18px;opacity:.9;margin-bottom:36px}
+.big{font-family:"Chakra Petch",sans-serif;font-size:clamp(22px,3vw,28px);font-weight:700;color:#fff;border:0;border-radius:999px;padding:20px 48px;min-width:200px}
+.acts{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
+.no{background:var(--black)}
+.yes{background:var(--green);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(201,168,76,.7)}50%{box-shadow:0 0 0 18px rgba(201,168,76,0)}}
+#callview{background:var(--black);color:#fff}
+#remote{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--black)}
+#waiting{position:absolute;inset:0;display:flex;flex-direction:column;gap:18px;align-items:center;justify-content:center;color:var(--muted);font-size:22px;text-align:center;padding:24px}
+#waiting img{height:44px;opacity:.9}
+.cinfo{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:20px;background:rgba(10,10,10,.8);border-left:4px solid var(--crimson);border-radius:10px;padding:10px 16px;max-width:60vw}
+.cinfo .n{font-family:"Chakra Petch",sans-serif;font-size:20px;font-weight:700;overflow-wrap:anywhere}
+.cinfo .s{font-size:15px;color:#D0D0D0}
+#self{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));right:20px;width:min(28vw,240px);aspect-ratio:4/3;object-fit:cover;border-radius:12px;border:2px solid var(--gold);background:#222;transform:scaleX(-1)}
+.ctrls{position:absolute;left:0;right:0;bottom:calc(28px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;gap:16px;flex-wrap:wrap;padding:0 16px}
+.round{width:62px;height:62px;border-radius:50%;border:0;background:#2A2A2A;color:#fff;display:flex;align-items:center;justify-content:center}
+.round.offst{background:var(--gold);color:var(--black)}
+.hang{font-family:"Chakra Petch",sans-serif;font-size:20px;font-weight:700;height:62px;padding:0 34px;border-radius:999px;border:0;background:var(--red);color:#fff}
+#toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#F2F2F2;color:var(--black);padding:12px 18px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30;max-width:90vw;font-weight:600}
+#toast.show{opacity:1}
+dialog{border:1px solid var(--line);border-radius:14px;padding:0;max-width:640px;width:92vw;background:var(--card);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.65)}
+.dlg{padding:28px;display:flex;flex-direction:column;gap:14px;line-height:1.7}
+.dlg ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
+.dlg .btn{align-self:flex-end;background:var(--gold);color:#16110A;font-weight:700;border:0;border-radius:999px;padding:10px 26px;min-height:44px}
+@media (max-width:640px){header,main{padding-left:16px;padding-right:16px}.row{padding:16px}main{padding-top:20px}.tools,.tools input{width:100%}.brand img{height:30px}#self{width:34vw}.big{min-width:150px;padding:18px 30px}}
+@media (prefers-reduced-motion:reduce){.yes{animation:none}#toast{transition:none}}
+</style>
+</head>
+<body>
+<button class="banner" id="soundBanner">แตะตรงนี้หนึ่งครั้ง เพื่อให้เสียงเรียกเข้าดังได้</button>
+<header>
+  <div class="brand">
+    <img src="/assets/logo.png" alt="TESR">
+    <div><div class="app">LAN Call</div><div class="sub" id="meline">กำลังโหลด</div></div>
+  </div>
+  <div class="hright">
+    <div class="net off" id="net"><span class="dot"></span><span id="nettext">ยังไม่เชื่อมต่อ</span></div>
+    <button class="ghost" id="helpBtn">วิธีใช้</button>
+    <button class="ghost desk-only" id="quitBtn">ปิดโปรแกรม</button>
+  </div>
+</header>
+
+<main>
+  <section class="card" id="list">
+    <div class="lhead">
+      <h1>เครื่องที่พบในเครือข่าย</h1>
+      <div class="tools">
+        <input type="search" id="q" placeholder="ค้นหาชื่อเครื่องหรือ IP" aria-label="ค้นหาเครื่อง">
+        <button class="ghost desk-only" id="addBtn">เพิ่มด้วย IP</button>
+      </div>
+    </div>
+    <div id="rows"></div>
+  </section>
+
+  <aside>
+    <section class="card">
+      <h2 id="meTitle">เครื่องนี้</h2>
+      <label class="fld">ชื่อที่คนอื่นเห็น<input type="text" id="name" maxlength="60"></label>
+      <label class="fld">กล้อง<select id="cam"></select></label>
+      <label class="fld">ไมโครโฟน<select id="mic"></select></label>
+      <label class="chk">รับสายอัตโนมัติ<input type="checkbox" id="auto"></label>
+      <label class="chk desk-only">เปิดโปรแกรมเองตอนเปิดเครื่อง<input type="checkbox" id="boot"></label>
+      <label class="chk desk-only">โหมดหุ่นยนต์ / จอแสดงผล<input type="checkbox" id="robot"></label>
+      <p class="note desk-only">โหมดหุ่นยนต์: เปิดเต็มจอและรับสายอัตโนมัติทุกสาย เต็มจอจะมีผลเมื่อเปิดโปรแกรมครั้งถัดไป</p>
+      <label class="chk mob-only">ไม่ให้หน้าจอดับ<input type="checkbox" id="wake" checked></label>
+      <p class="note mob-only" id="viaLine"></p>
+    </section>
+
+    <section class="card desk-only" id="pairCard">
+      <h2>ใช้บนมือถือหรือ iPad</h2>
+      <div class="pair" id="pairBox">
+        <img id="qrImg" alt="QR code สำหรับเปิดบนมือถือ" hidden>
+        <ol>
+          <li>ต่อ Wi-Fi วงเดียวกับเครื่องนี้</li>
+          <li>สแกน QR หรือพิมพ์ลิงก์ด้านล่าง</li>
+          <li>ถ้าขึ้นคำเตือนความปลอดภัย ให้กด "แสดงรายละเอียด" แล้ว "ไปที่เว็บไซต์นี้"</li>
+          <li>กด แชร์ แล้ว "เพิ่มไปยังหน้าจอโฮม" จะได้ไอคอนไว้เปิดครั้งต่อไป</li>
+        </ol>
+      </div>
+      <div class="url" id="pairUrl"></div>
+    </section>
+
+    <section class="card">
+      <h2>ประวัติการโทร</h2>
+      <div id="history"></div>
+    </section>
+  </aside>
+</main>
+
+<div class="ov" id="incoming" role="dialog" aria-label="สายเรียกเข้า">
+  <img class="lg" src="/assets/logo.png" alt="TESR">
+  <div class="avatar" id="inAvatar">A</div>
+  <div class="who" id="inName"></div>
+  <h1 class="disp">กำลังโทรหาคุณ</h1>
+  <div class="from" id="inFrom"></div>
+  <div class="acts">
+    <button class="big no" id="declineBtn">ไม่สะดวก</button>
+    <button class="big yes" id="acceptBtn">รับสาย</button>
+  </div>
+</div>
+
+<div class="ov" id="callview" role="dialog" aria-label="หน้าคุยสาย">
+  <video id="remote" autoplay playsinline></video>
+  <div id="waiting"><img src="/assets/logo.png" alt=""><span>กำลังเชื่อมต่อ</span></div>
+  <div class="cinfo"><div class="n" id="cName"></div><div class="s" id="cStatus"></div></div>
+  <video id="self" autoplay playsinline muted></video>
+  <div class="ctrls">
+    <button class="round" id="micBtn" aria-label="ปิดไมค์"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><path d="M12 18v4"/></svg></button>
+    <button class="round" id="camBtn" aria-label="ปิดกล้อง"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></svg></button>
+    <button class="round" id="flipBtn" aria-label="สลับกล้องหน้าหลัง"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/></svg></button>
+    <button class="round desk-only" id="shareBtn" aria-label="แชร์หน้าจอ"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg></button>
+    <button class="hang" id="hangBtn">วางสาย</button>
+  </div>
+</div>
+
+<dialog id="help">
+  <div class="dlg">
+    <h2>วิธีใช้งาน</h2>
+    <ol>
+      <li>เปิดโปรแกรมบนทุกเครื่องที่ต่อ Wi-Fi หรือ LAN วงเดียวกัน แล้วตั้งชื่อเครื่องให้จำง่าย</li>
+      <li>รอรายชื่อเครื่องขึ้นเองภายในไม่กี่วินาที ถ้าไม่ขึ้นให้กด "เพิ่มด้วย IP"</li>
+      <li>กด "โทร" ที่ชื่อปลายทาง ปลายทางจะมีเสียงเรียกและปุ่ม "รับสาย"</li>
+      <li>ระหว่างคุย ปิดหรือเปิดไมค์ กล้อง และแชร์หน้าจอได้ กด "วางสาย" เมื่อคุยเสร็จ</li>
+    </ol>
+    <p style="margin:0">บนคอม ปิดหน้าต่างนี้ได้ โปรแกรมยังทำงานอยู่เบื้องหลัง เมื่อมีสายเข้าหน้าต่างจะเด้งขึ้นมาเอง ถ้าต้องการปิดจริงให้กด "ปิดโปรแกรม"</p>
+    <p style="margin:0">บนมือถือและ iPad ต้องเปิดแอปไว้หน้าจอและไม่ล็อกจอถึงจะรับสายได้</p>
+    <p style="margin:0">เครื่องที่ติดกับหุ่นยนต์: เปิด "โหมดหุ่นยนต์ / จอแสดงผล" สายที่โทรเข้าจะรับเองทันที</p>
+    <p style="margin:0;color:var(--muted)" id="verline"></p>
+    <button class="btn" id="helpClose">ปิด</button>
+  </div>
+</dialog>
+
+<dialog id="nameDlg">
+  <div class="dlg">
+    <h2>ตั้งชื่ออุปกรณ์นี้</h2>
+    <p style="margin:0;color:var(--muted)">ชื่อนี้คือสิ่งที่เครื่องอื่นจะเห็นตอนโทรหาคุณ</p>
+    <input type="text" id="nameFirst" maxlength="60" placeholder="เช่น iPad ห้องประชุม">
+    <button class="btn" id="nameOk">เริ่มใช้งาน</button>
+  </div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const MOBILE = !['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+const RTC = { iceServers: [] };
+const RING_TIMEOUT = 45000;
+if (MOBILE) document.body.classList.add('mobile');
+
+let EP = null, settings = {}, peers = [], call = null, pc = null, stream = null, camTrack = null, screenTrack = null;
+let actx = null, ringIv = null, toastT = null, tickIv = null, wakeLock = null, facing = 'user';
+
+/* ---------- storage ---------- */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch (e) {} }
+};
+function mobileId(){
+  let id = store.get('tlc-id', '');
+  if (!/^[a-f0-9]{16}$/.test(id)){
+    id = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
+    store.set('tlc-id', id);
+  }
+  return id;
+}
+function deviceKind(){
+  const ua = navigator.userAgent;
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iPad';
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'Android' : 'แท็บเล็ต Android';
+  return 'มือถือ';
+}
+
+/* ---------- helpers ---------- */
+async function api(path, body){
+  try {
+    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ep: EP, ...(body || {}) }) });
+    return await r.json();
+  } catch (e) { return { ok: false, error: 'ติดต่อโปรแกรมหลักไม่ได้' }; }
+}
+function sendTo(id, msg){ return api('/api/send', { to: id, msg }); }
+function toast(t){ const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 3800); }
+function mmss(s){ return String(s / 60 | 0).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+function waitIce(p){
+  return new Promise(res => {
+    if (p.iceGatheringState === 'complete') return res();
+    const t = setTimeout(res, 2500);
+    p.addEventListener('icegatheringstatechange', () => { if (p.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
+  });
+}
+function peerById(id){ return peers.find(p => p.id === id); }
+function setBusy(b){ api('/api/status', { busy: b }); }
+function autoAnswer(){ return MOBILE ? store.get('tlc-auto', '0') === '1' : !!settings.auto_answer; }
+
+/* ---------- events ---------- */
+let es = null;
+function connectEvents(){
+  if (es) es.close();
+  let url = '/api/events';
+  if (MOBILE){
+    EP = mobileId();
+    url += `?kind=mobile&ep=${EP}&name=${encodeURIComponent(store.get('tlc-name', deviceKind()))}&dev=${encodeURIComponent(deviceKind())}`;
+  }
+  es = new EventSource(url);
+  es.onopen = () => { $('#net').classList.remove('off'); $('#nettext').textContent = 'เชื่อมต่อ LAN แล้ว'; };
+  es.onerror = () => { $('#net').classList.add('off'); $('#nettext').textContent = 'กำลังเชื่อมต่อใหม่'; };
+  es.onmessage = e => {
+    const ev = JSON.parse(e.data);
+    if (ev.type === 'hello'){ applySettings(ev.settings); peers = ev.peers; renderPeers(); if (call) setBusy(true); }
+    else if (ev.type === 'settings') applySettings(ev.settings);
+    else if (ev.type === 'peers'){ peers = ev.peers; renderPeers(); renderHist(); }
+    else if (ev.type === 'msg') onPeerMsg(ev.from, ev.from_name, ev.msg || {}).catch(err => console.error(err));
+    else if (ev.type === 'quit'){ es.close(); document.body.innerHTML = '<p style="padding:3rem;font-size:20px">ปิดโปรแกรมแล้ว ปิดหน้าต่างนี้ได้เลย</p>'; }
+  };
+}
+function applySettings(s){
+  settings = s; EP = s.id;
+  $('#meline').textContent = MOBILE ? `${s.name} (ผ่าน ${s.host})` : `เครื่องนี้: ${s.name} (${s.ip})`;
+  if (document.activeElement !== $('#name')) $('#name').value = s.name;
+  $('#auto').checked = autoAnswer();
+  $('#verline').textContent = `เวอร์ชัน ${s.version}`;
+  if (MOBILE){
+    $('#meTitle').textContent = 'อุปกรณ์นี้';
+    $('#viaLine').textContent = `เชื่อมต่อผ่านคอม "${s.host}" ถ้าคอมเครื่องนั้นปิด จะโทรไม่ได้`;
+    return;
+  }
+  $('#boot').checked = s.autostart;
+  $('#robot').checked = !!s.robot_mode;
+  if (s.mobile_url){
+    $('#pairUrl').textContent = s.mobile_url;
+    if (s.qr){ $('#qrImg').src = '/api/qr.png?' + Date.now(); $('#qrImg').hidden = false; }
+  } else {
+    $('#pairBox').hidden = true;
+    $('#pairUrl').textContent = s.https_error || 'โหมดมือถือยังไม่พร้อม';
+  }
+}
+
+/* ---------- peer list ---------- */
+const PHONE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>';
+function renderPeers(){
+  const q = $('#q').value.trim().toLowerCase();
+  const box = $('#rows'); box.textContent = '';
+  const list = peers.filter(p => !q || p.name.toLowerCase().includes(q) || p.ip.includes(q));
+  if (!list.length){
+    const d = document.createElement('div'); d.className = 'empty';
+    d.textContent = peers.length ? 'ไม่พบเครื่องที่ตรงกับคำค้น' : 'ยังไม่พบเครื่องอื่น เปิดโปรแกรมนี้บนเครื่องปลายทางที่อยู่ใน Wi-Fi หรือ LAN วงเดียวกัน';
+    box.append(d); return;
+  }
+  for (const p of list){
+    const row = document.createElement('div'); row.className = 'row' + (p.online ? '' : ' off');
+    const info = document.createElement('div'); info.className = 'info';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = p.name;
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const where = p.kind === 'mobile' ? `${p.os}${p.here ? ' ที่ต่อกับเครื่องนี้' : ''}` : `${p.ip}, ${p.os}`;
+    meta.textContent = p.online ? where : `ไม่ได้เปิดโปรแกรม (${p.ago < 60 ? p.ago + ' วินาที' : Math.round(p.ago / 60) + ' นาที'}ที่แล้ว), ${p.os}`;
+    info.append(nm, meta);
+    const tag = document.createElement('span');
+    tag.className = 'tag ' + (!p.online ? 'off' : p.busy ? 'busy' : 'free');
+    tag.textContent = !p.online ? 'ออฟไลน์' : p.busy ? 'กำลังคุยสาย' : 'ว่าง';
+    const b = document.createElement('button'); b.className = 'call';
+    b.innerHTML = PHONE; b.append(p.online && p.busy ? 'ไม่ว่าง' : 'โทร');
+    b.disabled = !p.online || p.busy || !!call;
+    b.onclick = () => startCall(p);
+    row.append(info, tag, b); box.append(row);
+  }
+}
+$('#q').oninput = renderPeers;
+$('#addBtn').onclick = async () => {
+  const ip = prompt('ใส่ IP ของเครื่องปลายทาง (เช่น 192.168.1.50)');
+  if (!ip) return;
+  const r = await api('/api/add', { ip: ip.trim() });
+  toast(r.ok ? `เพิ่ม ${r.name} แล้ว` : r.error);
+};
+
+/* ---------- settings ---------- */
+$('#name').onchange = () => {
+  const n = $('#name').value.trim(); if (!n) return;
+  if (MOBILE) store.set('tlc-name', n);
+  api('/api/settings', { name: n });
+};
+$('#auto').onchange = () => MOBILE ? store.set('tlc-auto', $('#auto').checked ? '1' : '0') : api('/api/settings', { auto_answer: $('#auto').checked });
+$('#robot').onchange = async () => { const r = await api('/api/settings', { robot_mode: $('#robot').checked }); toast(r.ok ? ($('#robot').checked ? 'เปิดโหมดหุ่นยนต์แล้ว ปิดแล้วเปิดโปรแกรมใหม่เพื่อเข้าเต็มจอ' : 'ปิดโหมดหุ่นยนต์แล้ว') : r.error); };
+$('#boot').onchange = async () => { const r = await api('/api/settings', { autostart: $('#boot').checked }); if (!r.ok) toast(r.error); };
+$('#cam').onchange = () => store.set('tlc-cam', $('#cam').value);
+$('#mic').onchange = () => store.set('tlc-mic', $('#mic').value);
+$('#quitBtn').onclick = () => { if (confirm('ปิดโปรแกรม TESR LAN Call ทั้งหมด? เครื่องนี้จะรับสายไม่ได้จนกว่าจะเปิดใหม่ (ถ้าแค่ปิดหน้าต่าง โปรแกรมยังรับสายได้)')) api('/api/quit'); };
+
+async function listDevices(){
+  if (!navigator.mediaDevices) { toast('เบราว์เซอร์นี้ใช้กล้องไม่ได้ ต้องเปิดผ่าน https'); return; }
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => navigator.mediaDevices.getUserMedia({ audio: true }));
+    s.getTracks().forEach(t => t.stop());
+  } catch (e) { toast('ยังไม่ได้อนุญาตกล้องหรือไมค์ ให้กดอนุญาต'); }
+  const devs = await navigator.mediaDevices.enumerateDevices();
+  const fill = (sel, kind, key) => {
+    const saved = store.get(key, '');
+    sel.textContent = '';
+    devs.filter(d => d.kind === kind).forEach((d, i) => {
+      const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `${kind === 'videoinput' ? 'กล้อง' : 'ไมค์'} ${i + 1}`;
+      if (d.deviceId === saved) o.selected = true; sel.append(o);
+    });
+    if (!sel.options.length){ const o = document.createElement('option'); o.textContent = 'ไม่พบอุปกรณ์'; o.value = ''; sel.append(o); }
+  };
+  fill($('#cam'), 'videoinput', 'tlc-cam'); fill($('#mic'), 'audioinput', 'tlc-mic');
+  $('#flipBtn').hidden = devs.filter(d => d.kind === 'videoinput').length < 2;
+}
+navigator.mediaDevices && navigator.mediaDevices.addEventListener && navigator.mediaDevices.addEventListener('devicechange', listDevices);
+
+async function getStream(){
+  const cam = $('#cam').value, mic = $('#mic').value;
+  const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(mic ? { deviceId: { exact: mic } } : {}) };
+  const video = { width: { ideal: 1280 }, height: { ideal: 720 }, ...(cam ? { deviceId: { exact: cam } } : { facingMode: facing }) };
+  try { return await navigator.mediaDevices.getUserMedia({ audio, video }); }
+  catch (e) { toast('เปิดกล้องไม่ได้ จะโทรด้วยเสียงอย่างเดียว'); return await navigator.mediaDevices.getUserMedia({ audio }); }
+}
+
+/* ---------- wake lock (มือถือ) ---------- */
+async function keepAwake(){
+  if (!MOBILE || !$('#wake').checked || !('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+$('#wake').onchange = () => { if ($('#wake').checked) keepAwake(); else if (wakeLock) { wakeLock.release(); wakeLock = null; } };
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible'){ keepAwake(); if (es && es.readyState === 2) connectEvents(); } });
+
+/* ---------- history ---------- */
+function loadHist(){ try { return JSON.parse(store.get('tlc-history', '[]')); } catch (e) { return []; } }
+function addHist(name, result, peer){
+  const h = loadHist(); h.unshift({ name, at: Date.now(), result, peer: peer || (call && call.peer) || null });
+  store.set('tlc-history', JSON.stringify(h.slice(0, 15))); renderHist();
+}
+function renderHist(){
+  const box = $('#history'); box.textContent = '';
+  const h = loadHist();
+  if (!h.length){ const d = document.createElement('div'); d.className = 'meta'; d.textContent = 'ยังไม่มีประวัติการโทร'; box.append(d); return; }
+  for (const x of h.slice(0, 8)){
+    const row = document.createElement('div'); row.className = 'hist';
+    const a = document.createElement('span'); a.textContent = x.name;
+    const b = document.createElement('span'); b.className = 'r' + (x.result.startsWith('ไม่ได้') ? ' miss' : '');
+    const d = new Date(x.at);
+    b.textContent = `${d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} ${d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}, ${x.result}`;
+    row.append(a, b);
+    const p = x.peer && peerById(x.peer);
+    if (p && p.online && !p.busy && !call){
+      const cb = document.createElement('button'); cb.className = 'cb'; cb.textContent = 'โทรกลับ';
+      cb.onclick = () => startCall(p); row.append(cb);
+    }
+    box.append(row);
+  }
+}
+
+/* ---------- notifications ---------- */
+const BASE_TITLE = document.title;
+let titleIv = null, notif = null;
+function notify(title, body){
+  if (!('Notification' in window) || Notification.permission !== 'granted') return null;
+  try {
+    const n = new Notification(title, { body, icon: '/assets/icon-192.png', requireInteraction: true, tag: 'tlc' });
+    n.onclick = () => { window.focus(); n.close(); };
+    return n;
+  } catch (e) { return null; }
+}
+function alertStart(name){
+  clearInterval(titleIv);
+  let on = false; titleIv = setInterval(() => { document.title = (on = !on) ? `สายเรียกเข้า: ${name}` : BASE_TITLE; }, 900);
+  if (document.hidden || !document.hasFocus()) notif = notify('สายเรียกเข้า', `${name} กำลังโทรหาคุณ`);
+}
+function alertStop(){ clearInterval(titleIv); titleIv = null; document.title = BASE_TITLE; if (notif){ notif.close(); notif = null; } }
+
+/* ---------- ringtone ---------- */
+function audioCtx(){ if (!actx){ try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return actx; }
+function unlockSound(){
+  const c = audioCtx(); if (!c) return;
+  c.resume().then(() => $('#soundBanner').classList.toggle('show', c.state !== 'running'));
+}
+document.addEventListener('pointerdown', unlockSound);
+$('#soundBanner').onclick = unlockSound;
+function ringStart(){
+  const c = audioCtx(); if (!c) return;
+  c.resume();
+  const beep = () => [0, 0.25].forEach(off => {
+    const o = c.createOscillator(), g = c.createGain(), t = c.currentTime + off;
+    o.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.22);
+  });
+  beep(); ringIv = setInterval(beep, 1500);
+  if (navigator.vibrate) navigator.vibrate([400, 200, 400]);
+}
+function ringStop(){ clearInterval(ringIv); ringIv = null; alertStop(); }
+
+/* ---------- call UI ---------- */
+function showCall(){
+  $('#incoming').classList.remove('show');
+  $('#callview').classList.add('show');
+  $('#cName').textContent = call.name;
+  $('#self').srcObject = stream;
+  $('#waiting').hidden = false;
+  updateStatus();
+}
+function updateStatus(){
+  if (!call) return;
+  $('#cStatus').textContent = call.state === 'ringing' ? 'กำลังเรียกปลายทาง' : call.state === 'connecting' ? 'กำลังเชื่อมต่อ' : `กำลังคุย ${mmss(Math.floor((Date.now() - call.start) / 1000))}`;
+}
+function markIncall(){
+  if (!call || call.state === 'incall') return;
+  call.state = 'incall'; call.start = Date.now(); $('#waiting').hidden = true;
+  clearInterval(tickIv); tickIv = setInterval(updateStatus, 1000); updateStatus();
+}
+function makePC(){
+  const p = new RTCPeerConnection(RTC);
+  stream.getTracks().forEach(t => p.addTrack(t, stream));
+  p.ontrack = e => { const v = $('#remote'); if (v.srcObject !== e.streams[0]) { v.srcObject = e.streams[0]; v.play().catch(() => toast('แตะหน้าจอเพื่อเปิดเสียง')); } };
+  p.onconnectionstatechange = () => {
+    if (p !== pc) return;
+    if (p.connectionState === 'connected') markIncall();
+    if (p.connectionState === 'failed') endCall(true, 'การเชื่อมต่อขาดหาย');
+  };
+  return p;
+}
+
+async function startCall(p){
+  if (call) return;
+  unlockSound();
+  try { stream = await getStream(); } catch (e) { toast('เปิดไมค์ไม่ได้: ' + e.message); return; }
+  camTrack = stream.getVideoTracks()[0] || null;
+  call = { peer: p.id, name: p.name, dir: 'out', state: 'ringing' };
+  setBusy(true); renderPeers(); showCall();
+  const r = await sendTo(p.id, { t: 'ring' });
+  if (!r.ok) return endCall(false, r.error, true);
+  call.timer = setTimeout(() => {
+    if (call && call.state === 'ringing'){ sendTo(call.peer, { t: 'cancel' }); addHist(call.name, 'ไม่มีผู้รับสาย'); endCall(false, 'ไม่มีผู้รับสาย', true); }
+  }, RING_TIMEOUT);
+}
+async function sendOffer(){
+  call.state = 'connecting'; updateStatus(); clearTimeout(call.timer);
+  pc = makePC();
+  await pc.setLocalDescription(await pc.createOffer());
+  await waitIce(pc);
+  if (call) sendTo(call.peer, { t: 'offer', sdp: pc.localDescription });
+}
+function incoming(from, name){
+  call = { peer: from, name: name || 'ไม่ทราบชื่อ', dir: 'in', state: 'ringing' };
+  setBusy(true); renderPeers();
+  $('#inName').textContent = call.name;
+  $('#inAvatar').textContent = (call.name.trim()[0] || '?').toUpperCase();
+  const p = peerById(from); $('#inFrom').textContent = p ? `วิดีโอคอลจาก ${p.kind === 'mobile' ? p.os : p.ip}` : 'วิดีโอคอล';
+  $('#incoming').classList.add('show');
+  ringStart(); alertStart(call.name);
+  if (autoAnswer()) setTimeout(() => call && call.dir === 'in' && call.state === 'ringing' && accept(), 1200);
+}
+async function accept(){
+  if (!call || call.state !== 'ringing') return;
+  ringStop(); call.state = 'connecting';
+  try { stream = await getStream(); } catch (e) { sendTo(call.peer, { t: 'decline' }); return endCall(false, 'เปิดไมค์ไม่ได้: ' + e.message); }
+  camTrack = stream.getVideoTracks()[0] || null;
+  showCall();
+  sendTo(call.peer, { t: 'accept' });
+}
+function decline(){
+  if (!call) return;
+  sendTo(call.peer, { t: 'decline' }); addHist(call.name, 'ปฏิเสธสาย');
+  endCall(false, null, true);
+}
+async function onOffer(sdp){
+  pc = makePC();
+  await pc.setRemoteDescription(sdp);
+  await pc.setLocalDescription(await pc.createAnswer());
+  await waitIce(pc);
+  if (call) sendTo(call.peer, { t: 'answer', sdp: pc.localDescription });
+}
+async function onPeerMsg(from, name, m){
+  const mine = call && call.peer === from;
+  switch (m.t){
+    case 'ring':
+      if (call){ sendTo(from, { t: 'busy' }); addHist(name || '?', 'ไม่ได้รับสาย (ไม่ว่าง)'); return; }
+      return incoming(from, name);
+    case 'cancel':  if (mine && call.state === 'ringing'){ const nm = call.name; addHist(nm, 'ไม่ได้รับสาย', from); endCall(false, `สายที่ไม่ได้รับจาก ${nm}`, true); if (document.hidden || !document.hasFocus()) notify('สายที่ไม่ได้รับ', `${nm} โทรหาคุณ`); } return;
+    case 'accept':  if (mine && call.dir === 'out') await sendOffer(); return;
+    case 'decline': if (mine){ addHist(call.name, 'ปลายทางไม่สะดวก'); endCall(false, 'ปลายทางไม่สะดวกรับสาย', true); } return;
+    case 'busy':    if (mine){ addHist(call.name, 'ปลายทางไม่ว่าง'); endCall(false, 'ปลายทางกำลังคุยสายอื่น', true); } return;
+    case 'offer':   if (mine && call.dir === 'in') await onOffer(m.sdp); return;
+    case 'answer':  if (mine && pc) await pc.setRemoteDescription(m.sdp); return;
+    case 'hangup':  if (mine) endCall(false, 'ปลายทางวางสายแล้ว'); return;
+  }
+}
+function endCall(notify, msg, logged){
+  if (!call) return;
+  if (notify) sendTo(call.peer, { t: call.state === 'ringing' && call.dir === 'out' ? 'cancel' : 'hangup' });
+  if (!logged) addHist(call.name, call.start ? `คุย ${mmss(Math.floor((Date.now() - call.start) / 1000))}` : 'ยกเลิก');
+  clearTimeout(call.timer); clearInterval(tickIv); ringStop();
+  if (pc){ pc.close(); pc = null; }
+  if (screenTrack){ screenTrack.stop(); screenTrack = null; }
+  if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  $('#remote').srcObject = null; $('#self').srcObject = null;
+  $('#incoming').classList.remove('show'); $('#callview').classList.remove('show');
+  ['#micBtn', '#camBtn', '#shareBtn'].forEach(s => $(s).classList.remove('offst'));
+  call = null; setBusy(false); renderPeers();
+  if (msg) toast(msg);
+}
+
+/* ---------- in-call controls ---------- */
+$('#acceptBtn').onclick = accept;
+$('#declineBtn').onclick = decline;
+$('#hangBtn').onclick = () => endCall(true, 'วางสายแล้ว');
+$('#remote').onclick = () => $('#remote').play().catch(() => {});
+$('#micBtn').onclick = () => {
+  const t = stream && stream.getAudioTracks()[0]; if (!t) return;
+  t.enabled = !t.enabled; $('#micBtn').classList.toggle('offst', !t.enabled);
+  $('#micBtn').setAttribute('aria-label', t.enabled ? 'ปิดไมค์' : 'เปิดไมค์');
+};
+$('#camBtn').onclick = () => {
+  if (!camTrack) return toast('ไม่มีกล้อง');
+  camTrack.enabled = !camTrack.enabled; $('#camBtn').classList.toggle('offst', !camTrack.enabled);
+  $('#camBtn').setAttribute('aria-label', camTrack.enabled ? 'ปิดกล้อง' : 'เปิดกล้อง');
+};
+$('#flipBtn').onclick = async () => {
+  if (!stream || !camTrack) return;
+  facing = facing === 'user' ? 'environment' : 'user';
+  try {
+    const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+    const nt = ns.getVideoTracks()[0];
+    const sender = pc && pc.getSenders().find(s => s.track && s.track.kind === 'video');
+    if (sender) await sender.replaceTrack(nt);
+    stream.removeTrack(camTrack); camTrack.stop(); stream.addTrack(nt); camTrack = nt;
+    $('#self').srcObject = stream;
+  } catch (e) { toast('สลับกล้องไม่ได้'); }
+};
+$('#shareBtn').onclick = async () => {
+  if (!pc) return;
+  const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+  if (!sender) return toast('ต้องมีกล้องก่อนถึงจะแชร์หน้าจอได้');
+  if (screenTrack){ screenTrack.stop(); screenTrack.onended && screenTrack.onended(); return; }
+  try {
+    const ds = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    screenTrack = ds.getVideoTracks()[0];
+    await sender.replaceTrack(screenTrack); $('#shareBtn').classList.add('offst');
+    screenTrack.onended = async () => { screenTrack = null; $('#shareBtn').classList.remove('offst'); if (pc) await sender.replaceTrack(camTrack); };
+  } catch (e) {}
+};
+
+/* ---------- dialogs & start ---------- */
+$('#helpBtn').onclick = () => $('#help').showModal();
+$('#helpClose').onclick = () => $('#help').close();
+$('#nameOk').onclick = () => {
+  const n = $('#nameFirst').value.trim() || deviceKind();
+  store.set('tlc-name', n); $('#nameDlg').close(); start();
+};
+function start(){
+  connectEvents(); listDevices(); keepAwake();
+  if (!MOBILE && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+  setTimeout(() => { const c = audioCtx(); if (c && c.state !== 'running') $('#soundBanner').classList.add('show'); }, 800);
+}
+renderHist();
+if (MOBILE && !store.get('tlc-name', '')){ $('#nameFirst').value = deviceKind(); $('#nameDlg').showModal(); }
+else start();
+</script>
+</body>
+</html>
