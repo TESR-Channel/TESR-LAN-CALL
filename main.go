@@ -40,7 +40,7 @@ import (
 
 const (
 	appName      = "TESR LAN Call"
-	version      = "2.1.0"
+	version      = "2.2.0"
 	peerTimeout  = 8 * time.Second
 	mobileGrace  = 45 * time.Second
 	pendingTTL   = 30 * time.Second
@@ -118,6 +118,46 @@ func primaryIP() string {
 	return c.LocalAddr().(*net.UDPAddr).IP.String()
 }
 
+// การ์ดเครือข่ายเสมือน (VPN, WSL, Docker, VM) ที่มือถือเข้าถึงไม่ได้
+var virtualIf = regexp.MustCompile(`(?i)vethernet|virtualbox|vmware|vmnet|hyper-v|docker|podman|virbr|lxd|cni|flannel|veth|wsl|tailscale|zerotier|^zt|^utun|^tun|^tap|^wg|bluetooth|^llw|^awdl|^anpi|^bridge|^br-`)
+
+// IP ในวง LAN ที่มือถือใช้ได้ เรียงจากที่น่าจะถูกที่สุด (การ์ดที่ออกเน็ตก่อน)
+func lanIPs() []string {
+	primary := primaryIP()
+	var good []string
+	ifs, _ := net.Interfaces()
+	for _, ifc := range ifs {
+		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 || virtualIf.MatchString(ifc.Name) {
+			continue
+		}
+		addrs, _ := ifc.Addrs()
+		for _, a := range addrs {
+			if n, ok := a.(*net.IPNet); ok {
+				if ip := n.IP.To4(); ip != nil && ip.IsPrivate() {
+					good = append(good, ip.String())
+				}
+			}
+		}
+	}
+	out := []string{}
+	for _, g := range good {
+		if g == primary {
+			out = append(out, g)
+		}
+	}
+	for _, g := range good {
+		if g != primary {
+			out = append(out, g)
+		}
+	}
+	if len(out) == 0 {
+		out = append(out, primary)
+	}
+	return out
+}
+
+func lanIP() string { return lanIPs()[0] }
+
 // ======================================================================== state
 
 type Endpoint struct {
@@ -161,22 +201,34 @@ func (s *State) info(ep *Endpoint) map[string]any {
 		"os": ep.Dev, "kind": ep.Kind, "busy": ep.Busy, "ui": len(ep.clients) > 0 || (ep == s.local && s.canWake)}
 }
 
-func (s *State) mobileURL() string {
-	if !s.httpsOK {
-		return ""
+func (s *State) mobileURLs() []string {
+	out := []string{}
+	if s.httpsOK {
+		for _, ip := range lanIPs() {
+			out = append(out, fmt.Sprintf("https://%s:%d/", ip, s.https))
+		}
 	}
-	return fmt.Sprintf("https://%s:%d/", primaryIP(), s.https)
+	return out
+}
+
+func (s *State) mobileURL() string {
+	if u := s.mobileURLs(); len(u) > 0 {
+		return u[0]
+	}
+	return ""
 }
 
 func (s *State) settingsFor(ep *Endpoint) map[string]any {
 	m := map[string]any{"id": ep.ID, "name": ep.Name, "kind": ep.Kind, "version": version,
-		"host": s.local.Name, "ip": primaryIP()}
+		"host": s.local.Name, "ip": lanIP()}
 	if ep == s.local {
 		m["auto_answer"] = s.cfg.AutoAnswer
 		m["robot_mode"] = s.cfg.RobotMode
 		m["autostart"] = autostartEnabled()
 		m["port"] = s.port
 		m["mobile_url"] = s.mobileURL()
+		m["mobile_urls"] = s.mobileURLs()
+		m["os"] = runtime.GOOS
 		m["qr"] = s.httpsOK
 		m["https_error"] = s.httpsErr
 	}
@@ -212,7 +264,7 @@ func (s *State) pushPeers() {
 }
 
 func (s *State) peerListLocked(me *Endpoint) []map[string]any {
-	now, ip := time.Now(), primaryIP()
+	now, ip := time.Now(), lanIP()
 	out := []map[string]any{}
 	for _, p := range s.peers {
 		out = append(out, map[string]any{"id": p.ID, "name": p.Name, "ip": p.IP, "port": p.Port, "os": p.OS,
@@ -338,8 +390,10 @@ func (s *State) announcer() {
 	}
 	for {
 		targets := map[string]bool{"255.255.255.255": true}
-		if ip := primaryIP(); ip != "127.0.0.1" {
-			targets[ip[:strings.LastIndex(ip, ".")]+".255"] = true
+		for _, ip := range lanIPs() {
+			if ip != "127.0.0.1" {
+				targets[ip[:strings.LastIndex(ip, ".")]+".255"] = true
+			}
 		}
 		s.mu.Lock()
 		for _, m := range s.cfg.ManualIPs {
@@ -446,7 +500,8 @@ func httpJSON(url string, body any) (map[string]any, int, error) {
 
 // ======================================================================== https cert
 
-func ensureCert(ip string) (tls.Certificate, error) {
+func ensureCert(ips []string) (tls.Certificate, error) {
+	ip := strings.Join(ips, ",")
 	certP, keyP, metaP := filepath.Join(dataDir, "cert.pem"), filepath.Join(dataDir, "key.pem"), filepath.Join(dataDir, "cert-ip.txt")
 	if m, err := os.ReadFile(metaP); err == nil && strings.TrimSpace(string(m)) == ip {
 		if c, err := tls.LoadX509KeyPair(certP, keyP); err == nil {
@@ -466,7 +521,12 @@ func ensureCert(ip string) (tls.Certificate, error) {
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		DNSNames:     []string{"localhost"},
-		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP(ip)},
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	for _, a := range ips {
+		if p := net.ParseIP(a); p != nil {
+			tpl.IPAddresses = append(tpl.IPAddresses, p)
+		}
 	}
 	der, err := x509.CreateCertificate(rand.Reader, &tpl, &tpl, &key.PublicKey, key)
 	if err != nil {
@@ -731,6 +791,17 @@ func (s *State) api(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.apiAdd(w, d)
+	case "/api/fix-network":
+		if ep != s.local {
+			writeJSON(w, 403, map[string]any{"ok": false})
+			return
+		}
+		msg, err := fixNetwork(s.port, s.https, s.disc)
+		if err != nil {
+			writeJSON(w, 200, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "msg": msg})
 	case "/api/quit":
 		if ep != s.local {
 			writeJSON(w, 403, map[string]any{"ok": false})
@@ -887,7 +958,11 @@ func main() {
 	background := fset.Bool("background", false, "ทำงานเบื้องหลัง เปิดหน้าต่างเองเมื่อมีสายเข้า")
 	noWindow := fset.Bool("no-window", false, "ไม่เปิดหน้าต่างเลย (server อย่างเดียว)")
 	robot := fset.Bool("robot", false, "เปิดโหมดหุ่นยนต์: เต็มจอ + รับสายอัตโนมัติ + เปิดเองตอนเปิดเครื่อง")
+	fixFW := fset.Bool("fix-firewall", false, "เปิดสิทธิ์ไฟร์วอลล์ Windows ให้มือถือเข้าได้ (ต้องรันแบบผู้ดูแลระบบ)")
 	_ = fset.Parse(args)
+	if *fixFW {
+		os.Exit(runFirewallScript(*port, *httpsPort, *disc))
+	}
 
 	_, statErr := os.Stat(filepath.Join(dataDir, "config.json"))
 	firstRun := statErr != nil
@@ -923,7 +998,7 @@ func main() {
 	s.endpoints = map[string]*Endpoint{s.local.ID: s.local}
 	h := s.routes()
 
-	if cert, err := ensureCert(primaryIP()); err == nil {
+	if cert, err := ensureCert(lanIPs()); err == nil {
 		tln, err := tls.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *httpsPort), &tls.Config{Certificates: []tls.Certificate{cert}})
 		if err == nil {
 			s.httpsOK = true
@@ -940,7 +1015,7 @@ func main() {
 	go s.listener()
 	go s.watcher()
 
-	log.Printf("%s %s | %s (%s, %s) | %s | mobile %s", appName, version, cfg.Name, primaryIP(), osName(), localURL, s.mobileURL())
+	log.Printf("%s %s | %s (%s, %s) | %s | mobile %s", appName, version, cfg.Name, lanIP(), osName(), localURL, s.mobileURL())
 	if !*noWindow && !*background {
 		time.AfterFunc(400*time.Millisecond, func() { openWindow(localURL, isKiosk) })
 	}
