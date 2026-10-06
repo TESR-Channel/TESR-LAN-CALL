@@ -40,7 +40,7 @@ import (
 
 const (
 	appName      = "TESR LAN Call"
-	version      = "2.2.1"
+	version      = "2.3.0"
 	peerTimeout  = 8 * time.Second
 	mobileGrace  = 45 * time.Second
 	pendingTTL   = 30 * time.Second
@@ -64,6 +64,7 @@ type Config struct {
 	Name       string   `json:"name"`
 	AutoAnswer bool     `json:"auto_answer"`
 	RobotMode  bool     `json:"robot_mode"`
+	AllowSleep bool     `json:"allow_sleep"`
 	ManualIPs  []string `json:"manual_ips"`
 }
 
@@ -194,6 +195,7 @@ type State struct {
 	kiosk             bool
 	lastWake          time.Time
 	kick              chan struct{}
+	wifi              string
 }
 
 func (s *State) info(ep *Endpoint) map[string]any {
@@ -220,9 +222,10 @@ func (s *State) mobileURL() string {
 
 func (s *State) settingsFor(ep *Endpoint) map[string]any {
 	m := map[string]any{"id": ep.ID, "name": ep.Name, "kind": ep.Kind, "version": version,
-		"host": s.local.Name, "ip": lanIP()}
+		"host": s.local.Name, "ip": lanIP(), "wifi": s.wifi}
 	if ep == s.local {
 		m["auto_answer"] = s.cfg.AutoAnswer
+		m["awake"] = !s.cfg.AllowSleep
 		m["robot_mode"] = s.cfg.RobotMode
 		m["autostart"] = autostartEnabled()
 		m["port"] = s.port
@@ -451,6 +454,28 @@ func (s *State) listener() {
 			s.mu.Unlock()
 			_, _ = conn.WriteToUDP(b, &net.UDPAddr{IP: addr.IP, Port: s.disc})
 		}
+	}
+}
+
+// ทุก 30 วินาที: กันคอมหลับ (มือถือ/iPad จะได้เข้าถึงได้ตลอด) และอัปเดตชื่อ Wi-Fi
+func (s *State) housekeeping() {
+	for i := 0; ; i++ {
+		s.mu.Lock()
+		awake := !s.cfg.AllowSleep
+		s.mu.Unlock()
+		preventSleep(awake)
+		if i%2 == 0 {
+			w := wifiName()
+			s.mu.Lock()
+			if w != s.wifi {
+				s.wifi = w
+				for _, ep := range s.endpoints {
+					send(ep, map[string]any{"type": "settings", "settings": s.settingsFor(ep)})
+				}
+			}
+			s.mu.Unlock()
+		}
+		time.Sleep(30 * time.Second)
 	}
 }
 
@@ -869,6 +894,10 @@ func (s *State) apiSettings(w http.ResponseWriter, ep *Endpoint, d map[string]an
 		if v, ok := d["auto_answer"].(bool); ok {
 			s.cfg.AutoAnswer = v
 		}
+		if v, ok := d["awake"].(bool); ok {
+			s.cfg.AllowSleep = !v
+			go preventSleep(v)
+		}
 		if v, ok := d["robot_mode"].(bool); ok {
 			s.cfg.RobotMode = v
 			if v {
@@ -1014,6 +1043,7 @@ func main() {
 	go s.announcer()
 	go s.listener()
 	go s.watcher()
+	go s.housekeeping()
 
 	log.Printf("%s %s | %s (%s, %s) | %s | mobile %s", appName, version, cfg.Name, lanIP(), osName(), localURL, s.mobileURL())
 	if !*noWindow && !*background {
