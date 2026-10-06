@@ -1,19 +1,34 @@
 """เตรียมโลโก้/ไอคอนของโปรแกรม -> assets/logo.png และ assets/icon-1024.png
 1) ถ้ามีไฟล์สองตัวนี้อยู่แล้ว (อัปโหลดเอง) จะไม่แตะ
-2) ถ้ามีโลโก้ TESR ใน assets/brand/tesr-emblem.webp.b64 จะสร้างจากโลโก้นั้น
+2) ถ้ามีโลโก้ TESR ใน assets/brand/part-*.b64 (ตรวจ sha256 แล้ว) จะสร้างจากโลโก้นั้น
 3) ถ้าไม่มีอะไรเลย จะสร้างโลโก้ชั่วคราวสี CI"""
-import base64, io
+import base64, hashlib, io
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 A = Path(__file__).resolve().parent.parent / "assets"
-LOGO, ICON, EMB = A / "logo.png", A / "icon-1024.png", A / "brand" / "tesr-emblem.webp.b64"
+LOGO, ICON = A / "logo.png", A / "icon-1024.png"
+
+
+def load_emblem():
+    parts = sorted((A / "brand").glob("part-*.b64"))
+    if not parts:
+        return None
+    raw = base64.b64decode("".join(p.read_text() for p in parts))
+    want = (A / "brand" / "tesr-emblem.sha256").read_text().strip()
+    if hashlib.sha256(raw).hexdigest() != want:
+        print("::warning::TESR emblem checksum mismatch, using placeholder logo")
+        return None
+    return Image.open(io.BytesIO(raw)).convert("RGBA")
+
+
+EMB = None if (LOGO.exists() and ICON.exists()) else load_emblem()
 BLACK, CRIMSON, GOLD = (10, 10, 10, 255), (139, 0, 0, 255), (201, 168, 76, 255)
 
 if LOGO.exists() and ICON.exists():
     print("logo/icon already present")
-elif EMB.exists():
-    emb = Image.open(io.BytesIO(base64.b64decode(EMB.read_text()))).convert("RGBA")
+elif EMB is not None:
+    emb = EMB
     if not ICON.exists():  # โลโก้กลางพื้นโปร่งใส 1024x1024
         s, pad = 1024, 40
         k = (s - 2 * pad) / max(emb.size)
