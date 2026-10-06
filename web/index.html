@@ -169,6 +169,9 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
         </ol>
       </div>
       <div class="url" id="pairUrl"></div>
+      <div class="note" id="pairAlt" hidden></div>
+      <div class="note"><b style="color:var(--ink)">มือถือเปิดไม่ขึ้น?</b> ตรวจว่ามือถือต่อ Wi-Fi วงเดียวกับคอมนี้<span id="subnetHint"></span> แล้วกดปุ่มด้านล่างหนึ่งครั้ง (จะมีหน้าต่างขอสิทธิ์ ให้กด "ใช่")</div>
+      <button class="ghost" id="fixNetBtn">ซ่อมการเชื่อมต่อมือถือ</button>
     </section>
 
     <section class="card">
@@ -321,6 +324,10 @@ function applySettings(s){
   $('#robot').checked = !!s.robot_mode;
   if (s.mobile_url){
     $('#pairUrl').textContent = s.mobile_url;
+    const alt = (s.mobile_urls || []).slice(1);
+    $('#pairAlt').hidden = !alt.length;
+    $('#pairAlt').textContent = alt.length ? 'ถ้าสแกนแล้วเปิดไม่ขึ้น ลองพิมพ์ลิงก์นี้ในมือถือแทน: ' + alt.join('  หรือ  ') : '';
+    $('#subnetHint').textContent = ` (IP ของมือถือต้องขึ้นต้นด้วย ${s.ip.split('.').slice(0, 3).join('.')}.)`;
     if (s.qr){ $('#qrImg').src = '/api/qr.png?' + Date.now(); $('#qrImg').hidden = false; }
   } else {
     $('#pairBox').hidden = true;
@@ -376,6 +383,12 @@ $('#robot').onchange = async () => { const r = await api('/api/settings', { robo
 $('#boot').onchange = async () => { const r = await api('/api/settings', { autostart: $('#boot').checked }); if (!r.ok) toast(r.error); };
 $('#cam').onchange = () => store.set('tlc-cam', $('#cam').value);
 $('#mic').onchange = () => store.set('tlc-mic', $('#mic').value);
+$('#fixNetBtn').onclick = async () => {
+  const b = $('#fixNetBtn'); b.disabled = true; b.textContent = 'กำลังตั้งค่า... กด "ใช่" ในหน้าต่างที่เด้งขึ้น';
+  const r = await api('/api/fix-network');
+  b.disabled = false; b.textContent = 'ซ่อมการเชื่อมต่อมือถือ';
+  toast(r.ok ? r.msg : r.error);
+};
 $('#quitBtn').onclick = () => { if (confirm('ปิดโปรแกรม TESR LAN Call ทั้งหมด? เครื่องนี้จะรับสายไม่ได้จนกว่าจะเปิดใหม่ (ถ้าแค่ปิดหน้าต่าง โปรแกรมยังรับสายได้)')) api('/api/quit'); };
 
 async function listDevices(){
