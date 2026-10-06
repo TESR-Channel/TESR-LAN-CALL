@@ -151,6 +151,7 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
       <label class="fld">ไมโครโฟน<select id="mic"></select></label>
       <label class="chk">รับสายอัตโนมัติ<input type="checkbox" id="auto"></label>
       <label class="chk desk-only">เปิดโปรแกรมเองตอนเปิดเครื่อง<input type="checkbox" id="boot"></label>
+      <label class="chk desk-only">ไม่ให้คอมหลับ (มือถือ/iPad โทรเข้าได้ตลอด)<input type="checkbox" id="awake"></label>
       <label class="chk desk-only">โหมดหุ่นยนต์ / จอแสดงผล<input type="checkbox" id="robot"></label>
       <p class="note desk-only">โหมดหุ่นยนต์: เปิดเต็มจอและรับสายอัตโนมัติทุกสาย เต็มจอจะมีผลเมื่อเปิดโปรแกรมครั้งถัดไป</p>
       <label class="chk mob-only">ไม่ให้หน้าจอดับ<input type="checkbox" id="wake" checked></label>
@@ -168,6 +169,7 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
           <li>กด แชร์ แล้ว "เพิ่มไปยังหน้าจอโฮม" จะได้ไอคอนไว้เปิดครั้งต่อไป</li>
         </ol>
       </div>
+      <div class="note" id="wifiLine"></div>
       <div class="url" id="pairUrl"></div>
       <div class="note" id="pairAlt" hidden></div>
       <div class="note"><b style="color:var(--ink)">มือถือเปิดไม่ขึ้น?</b> ตรวจว่ามือถือต่อ Wi-Fi วงเดียวกับคอมนี้<span id="subnetHint"></span> แล้วกดปุ่มด้านล่างหนึ่งครั้ง (จะมีหน้าต่างขอสิทธิ์ ให้กด "ใช่")</div>
@@ -317,11 +319,16 @@ function applySettings(s){
   $('#verline').textContent = `เวอร์ชัน ${s.version}`;
   if (MOBILE){
     $('#meTitle').textContent = 'อุปกรณ์นี้';
-    $('#viaLine').textContent = `เชื่อมต่อผ่านคอม "${s.host}" ถ้าคอมเครื่องนั้นปิด จะโทรไม่ได้`;
+    $('#viaLine').textContent = `เชื่อมต่อผ่านคอม "${s.host}"${s.wifi ? ` (Wi-Fi: ${s.wifi})` : ''} ถ้าคอมเครื่องนั้นปิดหรือหลับ จะโทรไม่ได้`;
     return;
   }
   $('#boot').checked = s.autostart;
   $('#robot').checked = !!s.robot_mode;
+  $('#awake').checked = s.awake !== false;
+  const wl = $('#wifiLine'); wl.textContent = '';
+  const b = document.createElement('b'); b.style.color = 'var(--ink)';
+  if (s.wifi){ wl.append('คอมนี้ต่อ Wi-Fi ชื่อ '); b.textContent = s.wifi; wl.append(b, ' มือถือและ iPad ต้องต่อ Wi-Fi ชื่อนี้'); }
+  else { b.textContent = 'มือถือและ iPad ต้องต่อ Wi-Fi ของเราเตอร์ตัวเดียวกับคอมนี้'; wl.append(b, ' (Wi-Fi สำหรับแขกมักเชื่อมกันไม่ได้)'); }
   if (s.mobile_url){
     $('#pairUrl').textContent = s.mobile_url;
     const alt = (s.mobile_urls || []).slice(1);
@@ -380,6 +387,7 @@ $('#name').onchange = () => {
 };
 $('#auto').onchange = () => MOBILE ? store.set('tlc-auto', $('#auto').checked ? '1' : '0') : api('/api/settings', { auto_answer: $('#auto').checked });
 $('#robot').onchange = async () => { const r = await api('/api/settings', { robot_mode: $('#robot').checked }); toast(r.ok ? ($('#robot').checked ? 'เปิดโหมดหุ่นยนต์แล้ว ปิดแล้วเปิดโปรแกรมใหม่เพื่อเข้าเต็มจอ' : 'ปิดโหมดหุ่นยนต์แล้ว') : r.error); };
+$('#awake').onchange = () => api('/api/settings', { awake: $('#awake').checked });
 $('#boot').onchange = async () => { const r = await api('/api/settings', { autostart: $('#boot').checked }); if (!r.ok) toast(r.error); };
 $('#cam').onchange = () => store.set('tlc-cam', $('#cam').value);
 $('#mic').onchange = () => store.set('tlc-mic', $('#mic').value);
