@@ -1,0 +1,22 @@
+TESR LAN Call สำหรับ Raspberry Pi 4 / 5
+========================================
+
+เลือกไฟล์ให้ตรงกับระบบ (เช็กได้ด้วยคำสั่ง  dpkg --print-architecture)
+    arm64  ->  tesr-lan-call___VERSION___arm64.deb   (Raspberry Pi OS 64-bit, แนะนำ)
+    armhf  ->  tesr-lan-call___VERSION___armhf.deb   (Raspberry Pi OS 32-bit)
+
+ติดตั้ง
+------
+ดับเบิลคลิกไฟล์ .deb หรือเปิด Terminal ในโฟลเดอร์นี้ แล้วพิมพ์
+    sudo apt install ./tesr-lan-call___VERSION___arm64.deb
+
+เสร็จแล้วจะมีไอคอน TESR LAN Call บน Desktop และในเมนู Internet
+Raspberry Pi OS มี Chromium อยู่แล้ว โปรแกรมจะเปิดเป็นหน้าต่างแอปให้เอง
+
+ต้องมี: กล้อง USB (หรือ Pi Camera ที่ใช้กับ Chromium ได้), ไมค์, ลำโพง
+
+ใช้กับหุ่นยนต์หรือจอหน้างาน: ดูโฟลเดอร์ For-Robot
+
+ถอนการติดตั้ง
+-----------
+    sudo apt remove tesr-lan-call
