@@ -29,7 +29,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .disp{font-family:"Chakra Petch","IBM Plex Sans Thai",sans-serif}
 header{background:var(--black);border-bottom:3px solid var(--crimson);padding:14px 32px;padding-top:calc(14px + env(safe-area-inset-top,0px));display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px}
 .brand{display:flex;align-items:center;gap:16px;min-width:0}
-.brand img{height:38px;width:auto;display:block}
+.brand img{height:54px;width:auto;display:block;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))}
 .brand .app{font-family:"Chakra Petch",sans-serif;font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.02em;line-height:1.1}
 .brand .sub{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
 .hright{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -77,14 +77,14 @@ aside .card{padding:20px 24px;display:flex;flex-direction:column;gap:14px}
 .url{font-family:"Chakra Petch",monospace;color:var(--gold);font-size:16px;overflow-wrap:anywhere;user-select:all}
 .note{font-size:14px;line-height:1.6;color:var(--muted)}
 .banner{background:var(--crimson);color:#fff;text-align:center;padding:12px 16px;font-weight:600;border:0;width:100%;display:none}
-.banner.show{display:block}
+.banner.show{display:block;position:fixed;top:0;left:0;right:0;z-index:40;padding-top:calc(12px + env(safe-area-inset-top,0px))}
 body.mobile .desk-only{display:none!important}
 body:not(.mobile) .mob-only{display:none!important}
 /* overlays */
 .ov{position:fixed;inset:0;display:none;z-index:10}
 .ov.show{display:flex}
 #incoming{background:var(--crimson);color:#fff;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:32px}
-#incoming .lg{position:absolute;top:calc(24px + env(safe-area-inset-top,0px));left:28px;height:34px}
+#incoming .lg{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:24px;height:72px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 .avatar{width:128px;height:128px;border-radius:50%;background:var(--gold);color:var(--black);display:flex;align-items:center;justify-content:center;font-family:"Chakra Petch",sans-serif;font-size:56px;font-weight:700;margin-bottom:12px}
 #incoming .who{font-size:26px;opacity:.95;overflow-wrap:anywhere}
 #incoming h1{font-size:clamp(38px,7vw,64px);margin:0 0 8px;color:#fff}
@@ -97,7 +97,7 @@ body:not(.mobile) .mob-only{display:none!important}
 #callview{background:var(--black);color:#fff}
 #remote{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--black)}
 #waiting{position:absolute;inset:0;display:flex;flex-direction:column;gap:18px;align-items:center;justify-content:center;color:var(--muted);font-size:22px;text-align:center;padding:24px}
-#waiting img{height:44px;opacity:.9}
+#waiting img{height:140px;opacity:.95}
 .cinfo{position:absolute;top:calc(20px + env(safe-area-inset-top,0px));left:20px;background:rgba(10,10,10,.8);border-left:4px solid var(--crimson);border-radius:10px;padding:10px 16px;max-width:60vw}
 .cinfo .n{font-family:"Chakra Petch",sans-serif;font-size:20px;font-weight:700;overflow-wrap:anywhere}
 .cinfo .s{font-size:15px;color:#D0D0D0}
@@ -113,16 +113,16 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
 .dlg{padding:28px;display:flex;flex-direction:column;gap:14px;line-height:1.7}
 .dlg ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
 .dlg .btn{align-self:flex-end;background:var(--gold);color:#16110A;font-weight:700;border:0;border-radius:999px;padding:10px 26px;min-height:44px}
-@media (max-width:640px){header,main{padding-left:16px;padding-right:16px}.row{padding:16px}main{padding-top:20px}.tools,.tools input{width:100%}.brand img{height:30px}#self{width:34vw}.big{min-width:150px;padding:18px 30px}}
+@media (max-width:640px){header,main{padding-left:16px;padding-right:16px}.row{padding:16px}main{padding-top:20px}.tools,.tools input{width:100%}.brand img{height:42px}#self{width:34vw}.big{min-width:150px;padding:18px 30px}}
 @media (prefers-reduced-motion:reduce){.yes{animation:none}#toast{transition:none}}
 </style>
 </head>
 <body>
-<button class="banner" id="soundBanner">แตะตรงนี้หนึ่งครั้ง เพื่อให้เสียงเรียกเข้าดังได้</button>
+<button class="banner" id="soundBanner">แตะตรงนี้หนึ่งครั้ง เพื่อเปิดเสียงเรียกเข้า</button>
 <header>
   <div class="brand">
     <img src="/assets/logo.png" alt="TESR">
-    <div><div class="app">LAN Call</div><div class="sub" id="meline">กำลังโหลด</div></div>
+    <div><div class="app"><span style="color:var(--gold)">TESR</span> LAN Call</div><div class="sub" id="meline">กำลังโหลด</div></div>
   </div>
   <div class="hright">
     <div class="net off" id="net"><span class="dot"></span><span id="nettext">ยังไม่เชื่อมต่อ</span></div>
@@ -231,6 +231,7 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
 </dialog>
 
 <div id="toast" role="status" aria-live="polite"></div>
+<audio id="ringAudio" src="/assets/ringtone.wav" loop preload="auto" playsinline></audio>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -459,26 +460,48 @@ function alertStart(name){
 function alertStop(){ clearInterval(titleIv); titleIv = null; document.title = BASE_TITLE; if (notif){ notif.close(); notif = null; } }
 
 /* ---------- ringtone ---------- */
+const ringAudio = $('#ringAudio');
+let soundReady = false, beepIv = null;
+try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}  // iOS 17+: ดังได้แม้เปิดสวิตช์เงียบ
 function audioCtx(){ if (!actx){ try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return actx; }
+function hideBanner(){ $('#soundBanner').classList.remove('show'); }
+// มือถือ/เบราว์เซอร์ต้องได้การแตะจอหนึ่งครั้งก่อน จึงจะเล่นเสียงเองได้
 function unlockSound(){
-  const c = audioCtx(); if (!c) return;
-  c.resume().then(() => $('#soundBanner').classList.toggle('show', c.state !== 'running'));
+  const c = audioCtx(); if (c && c.state !== 'running') c.resume().catch(() => {});
+  if (soundReady) return;
+  const ringing = !!ringIv;
+  ringAudio.muted = !ringing;
+  ringAudio.play().then(() => {
+    if (!ringing){ ringAudio.pause(); ringAudio.currentTime = 0; }
+    ringAudio.muted = false; soundReady = true; stopBeep(); hideBanner();
+  }).catch(() => { ringAudio.muted = false; });
 }
 document.addEventListener('pointerdown', unlockSound);
+document.addEventListener('keydown', unlockSound);
 $('#soundBanner').onclick = unlockSound;
-function ringStart(){
-  const c = audioCtx(); if (!c) return;
-  c.resume();
+function beepFallback(){
+  const c = audioCtx(); if (!c || beepIv) return;
   const beep = () => [0, 0.25].forEach(off => {
     const o = c.createOscillator(), g = c.createGain(), t = c.currentTime + off;
     o.frequency.value = 880;
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.8, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
     o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.22);
   });
-  beep(); ringIv = setInterval(beep, 1500);
-  if (navigator.vibrate) navigator.vibrate([400, 200, 400]);
+  beep(); beepIv = setInterval(beep, 1500);
 }
-function ringStop(){ clearInterval(ringIv); ringIv = null; alertStop(); }
+function stopBeep(){ clearInterval(beepIv); beepIv = null; }
+function ringStart(){
+  ringAudio.muted = false; ringAudio.volume = 1; ringAudio.currentTime = 0;
+  if (navigator.vibrate) navigator.vibrate([400, 200, 400]);
+  ringIv = setInterval(() => { if (navigator.vibrate) navigator.vibrate([400, 200, 400]); }, 3000);
+  ringAudio.play().then(() => { soundReady = true; hideBanner(); })
+    .catch(() => { beepFallback(); $('#soundBanner').classList.add('show'); });
+}
+function ringStop(){
+  clearInterval(ringIv); ringIv = null; stopBeep();
+  ringAudio.pause(); ringAudio.currentTime = 0;
+  alertStop();
+}
 
 /* ---------- call UI ---------- */
 function showCall(){
@@ -534,7 +557,7 @@ function incoming(from, name){
   call = { peer: from, name: name || 'ไม่ทราบชื่อ', dir: 'in', state: 'ringing' };
   setBusy(true); renderPeers();
   $('#inName').textContent = call.name;
-  $('#inAvatar').textContent = (call.name.trim()[0] || '?').toUpperCase();
+  $('#inAvatar').textContent = ((call.name.trim().replace(/^[เแโใไ]/, '')[0]) || '?').toUpperCase();
   const p = peerById(from); $('#inFrom').textContent = p ? `วิดีโอคอลจาก ${p.kind === 'mobile' ? p.os : p.ip}` : 'วิดีโอคอล';
   $('#incoming').classList.add('show');
   ringStart(); alertStart(call.name);
@@ -640,7 +663,11 @@ $('#nameOk').onclick = () => {
 function start(){
   connectEvents(); listDevices(); keepAwake();
   if (!MOBILE && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
-  setTimeout(() => { const c = audioCtx(); if (c && c.state !== 'running') $('#soundBanner').classList.add('show'); }, 800);
+  setTimeout(() => {
+    const c = audioCtx();
+    if (c && c.state === 'running'){ soundReady = true; return; }   // เบราว์เซอร์อนุญาตเสียงอยู่แล้ว (หน้าต่างแอปบนคอม)
+    if (!soundReady) $('#soundBanner').classList.add('show');
+  }, 800);
 }
 renderHist();
 if (MOBILE && !store.get('tlc-name', '')){ $('#nameFirst').value = deviceKind(); $('#nameDlg').showModal(); }
