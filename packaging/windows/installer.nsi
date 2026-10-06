@@ -57,9 +57,8 @@ Section "TESR LAN Call (จำเป็น)" SecMain
   CreateDirectory "$SMPROGRAMS\TESR LAN Call"
   CreateShortCut "$SMPROGRAMS\TESR LAN Call\TESR LAN Call.lnk" "$INSTDIR\${EXE}" "" "$INSTDIR\icon.ico" 0
   CreateShortCut "$SMPROGRAMS\TESR LAN Call\ถอนการติดตั้ง TESR LAN Call.lnk" "$INSTDIR\uninstall.exe"
-  ; เปิดไฟร์วอลล์ให้โปรแกรม ผู้ใช้ไม่ต้องกด Allow
-  nsExec::Exec 'netsh advfirewall firewall delete rule name="TESR LAN Call"'
-  nsExec::Exec 'netsh advfirewall firewall add rule name="TESR LAN Call" dir=in action=allow program="$INSTDIR\${EXE}" enable=yes profile=any'
+  ; เปิดไฟร์วอลล์ให้โปรแกรมและพอร์ต (ลบกฎ Block ที่ Windows สร้างไว้ด้วย) ผู้ใช้ไม่ต้องกด Allow
+  nsExec::Exec '"$INSTDIR\${EXE}" --fix-firewall'
   WriteUninstaller "$INSTDIR\uninstall.exe"
   WriteRegStr HKLM "${UNKEY}" "DisplayName" "${APPNAME}"
   WriteRegStr HKLM "${UNKEY}" "DisplayVersion" "${VERSION}"
@@ -100,4 +99,6 @@ Section "Uninstall"
   DeleteRegValue HKCU "${RUNKEY}" "TESR LAN Call"
   DeleteRegKey HKLM "${UNKEY}"
   nsExec::Exec 'netsh advfirewall firewall delete rule name="TESR LAN Call"'
+  nsExec::Exec 'netsh advfirewall firewall delete rule name="TESR LAN Call (TCP)"'
+  nsExec::Exec 'netsh advfirewall firewall delete rule name="TESR LAN Call (UDP)"'
 SectionEnd
