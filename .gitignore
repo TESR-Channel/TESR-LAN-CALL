@@ -8,5 +8,6 @@ assets/icon-*.png
 assets/icon.ico
 assets/icon.icns
 assets/installer-*.bmp
+assets/ringtone.wav
 packaging/windows/*.syso
 *.syso

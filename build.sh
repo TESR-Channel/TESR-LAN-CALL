@@ -26,6 +26,7 @@ for f in chakrapetch/ChakraPetch-SemiBold.ttf chakrapetch/ChakraPetch-Bold.ttf \
 done
 python3 tools/make_placeholder_logo.py          # สร้างเฉพาะไฟล์ที่ยังไม่มี
 python3 tools/make_icons.py                     # ไอคอนทุกขนาดจาก assets/icon-1024.png
+python3 tools/make_ringtone.py                  # เสียงเรียกเข้า assets/ringtone.wav
 SYSO=packaging/windows/rsrc_windows_amd64.syso  # ไอคอนที่ฝังใน .exe
 if ! command -v rsrc >/dev/null; then
   GOFLAGS= go install github.com/akavel/rsrc@v0.10.2
