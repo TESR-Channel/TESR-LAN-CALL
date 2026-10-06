@@ -1,0 +1,12 @@
+build/
+dist/
+vendor/
+# ไฟล์ที่ build.sh สร้างให้เอง
+assets/fonts/*.ttf
+assets/icon-*.png
+!assets/icon-1024.png
+assets/icon.ico
+assets/icon.icns
+assets/installer-*.bmp
+packaging/windows/*.syso
+*.syso
