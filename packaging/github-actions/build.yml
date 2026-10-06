@@ -1,0 +1,59 @@
+# สร้างตัวติดตั้งทุกระบบ แล้วอัปโหลดขึ้นหน้า Releases อัตโนมัติทุกครั้งที่ push ขึ้น main
+# ออกเวอร์ชันใหม่: แก้ค่า version ใน main.go แล้ว push
+name: Build & Release
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y nsis llvm zip python3-pil
+      - name: Build all platforms
+        run: DIST="$PWD/dist" bash build.sh
+      - name: Collect release files
+        id: v
+        run: |
+          VER=$(sed -n 's/^\s*version\s*=\s*"\(.*\)"/\1/p' main.go | head -1)
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          P="dist/TESR-LAN-Call-v$VER"; R=dist/release; mkdir -p "$R"
+          cp "$P/For-Windows/TESR-LAN-Call-Setup.exe" "$R/"
+          cp "$P/For-Mac/TESR-LAN-Call-Mac.zip" "$R/"
+          cp "$P/For-Linux/tesr-lan-call_${VER}_amd64.deb" "$R/tesr-lan-call_amd64.deb"
+          cp "$P/For-Raspberry-Pi/tesr-lan-call_${VER}_arm64.deb" "$R/tesr-lan-call_arm64.deb"
+          cp "$P/For-Raspberry-Pi/tesr-lan-call_${VER}_armhf.deb" "$R/tesr-lan-call_armhf.deb"
+          cp "dist/TESR-LAN-Call-v$VER.zip" "$R/TESR-LAN-Call-All-Platforms.zip"
+          ls -la "$R"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TESR-LAN-Call-v${{ steps.v.outputs.ver }}
+          path: dist/release/*
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.ver }}
+          name: TESR LAN Call v${{ steps.v.outputs.ver }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          overwrite_files: true
+          files: dist/release/*
+          body: |
+            ## ดาวน์โหลด
+            | อุปกรณ์ | ไฟล์ |
+            |---|---|
+            | Windows 10/11 | `TESR-LAN-Call-Setup.exe` |
+            | Mac (ชิป M และ Intel) | `TESR-LAN-Call-Mac.zip` |
+            | Ubuntu / Debian | `tesr-lan-call_amd64.deb` |
+            | Raspberry Pi OS 64-bit | `tesr-lan-call_arm64.deb` |
+            | Raspberry Pi OS 32-bit | `tesr-lan-call_armhf.deb` |
+            | ครบทุกระบบ + คู่มือภาษาไทย | `TESR-LAN-Call-All-Platforms.zip` |
+
+            iPad / มือถือ ไม่ต้องดาวน์โหลด สแกน QR จากหน้าโปรแกรมบนคอม
+            วิธีติดตั้งอยู่ในหน้าแรกของ repository
