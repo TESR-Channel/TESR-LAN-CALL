@@ -391,10 +391,22 @@ $('#fixNetBtn').onclick = async () => {
 };
 $('#quitBtn').onclick = () => { if (confirm('ปิดโปรแกรม TESR LAN Call ทั้งหมด? เครื่องนี้จะรับสายไม่ได้จนกว่าจะเปิดใหม่ (ถ้าแค่ปิดหน้าต่าง โปรแกรมยังรับสายได้)')) api('/api/quit'); };
 
+// iOS: โหมดเสียง "playback" (ใช้ตอนเสียงเรียกเข้า) ห้ามใช้ตอนเปิดไมค์ ต้องสลับกลับก่อนขอกล้อง/ไมค์ทุกครั้ง
+function setSession(t){ try { if (navigator.audioSession && navigator.audioSession.type !== t) navigator.audioSession.type = t; } catch (e) {} }
+async function gum(c){
+  setSession('auto');
+  try { return await navigator.mediaDevices.getUserMedia(c); }
+  catch (e) {
+    if (!navigator.audioSession || !c.audio) throw e;
+    setSession('play-and-record');
+    return await navigator.mediaDevices.getUserMedia(c);
+  }
+}
+
 async function listDevices(){
   if (!navigator.mediaDevices) { toast('เบราว์เซอร์นี้ใช้กล้องไม่ได้ ต้องเปิดผ่าน https'); return; }
   try {
-    const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => navigator.mediaDevices.getUserMedia({ audio: true }));
+    const s = await gum({ audio: true, video: true }).catch(() => gum({ audio: true }));
     s.getTracks().forEach(t => t.stop());
   } catch (e) { toast('ยังไม่ได้อนุญาตกล้องหรือไมค์ ให้กดอนุญาต'); }
   const devs = await navigator.mediaDevices.enumerateDevices();
@@ -416,8 +428,8 @@ async function getStream(){
   const cam = $('#cam').value, mic = $('#mic').value;
   const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(mic ? { deviceId: { exact: mic } } : {}) };
   const video = { width: { ideal: 1280 }, height: { ideal: 720 }, ...(cam ? { deviceId: { exact: cam } } : { facingMode: facing }) };
-  try { return await navigator.mediaDevices.getUserMedia({ audio, video }); }
-  catch (e) { toast('เปิดกล้องไม่ได้ จะโทรด้วยเสียงอย่างเดียว'); return await navigator.mediaDevices.getUserMedia({ audio }); }
+  try { return await gum({ audio, video }); }
+  catch (e) { toast('เปิดกล้องไม่ได้ จะโทรด้วยเสียงอย่างเดียว'); return await gum({ audio }); }
 }
 
 /* ---------- wake lock (มือถือ) ---------- */
@@ -475,7 +487,6 @@ function alertStop(){ clearInterval(titleIv); titleIv = null; document.title = B
 /* ---------- ringtone ---------- */
 const ringAudio = $('#ringAudio');
 let soundReady = false, beepIv = null;
-try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}  // iOS 17+: ดังได้แม้เปิดสวิตช์เงียบ
 function audioCtx(){ if (!actx){ try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return actx; }
 function hideBanner(){ $('#soundBanner').classList.remove('show'); }
 // มือถือ/เบราว์เซอร์ต้องได้การแตะจอหนึ่งครั้งก่อน จึงจะเล่นเสียงเองได้
@@ -504,6 +515,7 @@ function beepFallback(){
 }
 function stopBeep(){ clearInterval(beepIv); beepIv = null; }
 function ringStart(){
+  if (!stream) setSession('playback');   // iOS 17+: ให้เสียงเรียกเข้าดังแม้เปิดสวิตช์เงียบ (เฉพาะตอนยังไม่ได้ใช้ไมค์)
   ringAudio.muted = false; ringAudio.volume = 1; ringAudio.currentTime = 0;
   if (navigator.vibrate) navigator.vibrate([400, 200, 400]);
   ringIv = setInterval(() => { if (navigator.vibrate) navigator.vibrate([400, 200, 400]); }, 3000);
@@ -513,6 +525,7 @@ function ringStart(){
 function ringStop(){
   clearInterval(ringIv); ringIv = null; stopBeep();
   ringAudio.pause(); ringAudio.currentTime = 0;
+  setSession('auto');
   alertStop();
 }
 
@@ -537,7 +550,12 @@ function markIncall(){
 function makePC(){
   const p = new RTCPeerConnection(RTC);
   stream.getTracks().forEach(t => p.addTrack(t, stream));
-  p.ontrack = e => { const v = $('#remote'); if (v.srcObject !== e.streams[0]) { v.srcObject = e.streams[0]; v.play().catch(() => toast('แตะหน้าจอเพื่อเปิดเสียง')); } };
+  p.ontrack = e => {
+    const v = $('#remote'); if (v.srcObject === e.streams[0]) return;
+    v.srcObject = e.streams[0];
+    const go = n => v.play().catch(err => { if (err.name === 'AbortError' && n < 4) setTimeout(() => go(n + 1), 300); else toast('แตะหน้าจอเพื่อเปิดเสียง'); });
+    go(0);
+  };
   p.onconnectionstatechange = () => {
     if (p !== pc) return;
     if (p.connectionState === 'connected') markIncall();
@@ -645,7 +663,7 @@ $('#flipBtn').onclick = async () => {
   if (!stream || !camTrack) return;
   facing = facing === 'user' ? 'environment' : 'user';
   try {
-    const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+    const ns = await gum({ video: { facingMode: facing } });
     const nt = ns.getVideoTracks()[0];
     const sender = pc && pc.getSenders().find(s => s.track && s.track.kind === 'video');
     if (sender) await sender.replaceTrack(nt);
