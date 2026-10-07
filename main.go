@@ -40,7 +40,7 @@ import (
 
 const (
 	appName      = "TESR LAN Call"
-	version      = "2.3.0"
+	version      = "2.4.0"
 	peerTimeout  = 8 * time.Second
 	mobileGrace  = 45 * time.Second
 	pendingTTL   = 30 * time.Second
@@ -355,15 +355,24 @@ func (s *State) deliver(target string, ev map[string]any) bool {
 	if ep == nil {
 		return false
 	}
+	msg, _ := ev["msg"].(map[string]any)
+	t := str(msg, "t")
 	if len(ep.clients) > 0 {
 		send(ep, ev)
+		if ep == s.local && t == "ring" { // มีสายเข้า: ดึงหน้าต่างที่พับเก็บ/อยู่หลังโปรแกรมอื่นขึ้นมา
+			go func() {
+				_, _ = windowDo(s.port, "front", nil)
+				time.Sleep(1200 * time.Millisecond) // กันพลาด: ถ้ายังถูกพับอยู่ ดึงขึ้นอีกครั้ง
+				if st, err := windowDo(s.port, "state", nil); err == nil && st == "minimized" {
+					_, _ = windowDo(s.port, "front", nil)
+				}
+			}()
+		}
 		return true
 	}
 	if ep != s.local || !s.canWake {
 		return false
 	}
-	msg, _ := ev["msg"].(map[string]any)
-	t := str(msg, "t")
 	from := str(ev, "from")
 	switch t {
 	case "ring":
@@ -371,7 +380,7 @@ func (s *State) deliver(target string, ev map[string]any) bool {
 		ep.pendingFrom, ep.pendingAt = from, time.Now()
 		if time.Since(s.lastWake) > 8*time.Second {
 			s.lastWake = time.Now()
-			go openWindow(fmt.Sprintf("http://localhost:%d/", s.port), s.kiosk)
+			go openWindow(s.port, s.kiosk || s.cfg.RobotMode)
 		}
 		return true
 	case "cancel", "hangup":
@@ -827,6 +836,22 @@ func (s *State) api(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, 200, map[string]any{"ok": true, "msg": msg})
+	case "/api/window":
+		if ep != s.local {
+			writeJSON(w, 403, map[string]any{"ok": false})
+			return
+		}
+		var small *winBounds
+		if b, ok := d["bounds"].(map[string]any); ok {
+			num := func(k string) int { f, _ := b[k].(float64); return int(f) }
+			small = &winBounds{Left: num("left"), Top: num("top"), Width: num("width"), Height: num("height")}
+		}
+		st, err := windowDo(s.port, str(d, "action"), small)
+		if err != nil {
+			writeJSON(w, 200, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "state": st})
 	case "/api/quit":
 		if ep != s.local {
 			writeJSON(w, 403, map[string]any{"ok": false})
@@ -837,7 +862,10 @@ func (s *State) api(w http.ResponseWriter, r *http.Request) {
 			send(e, map[string]any{"type": "quit"})
 		}
 		s.mu.Unlock()
-		time.AfterFunc(600*time.Millisecond, func() { os.Exit(0) })
+		time.AfterFunc(600*time.Millisecond, func() {
+			_, _ = windowDo(s.port, "quit", nil) // ปิดหน้าต่างให้ด้วย ไม่ต้องกด Alt+F4
+			os.Exit(0)
+		})
 		writeJSON(w, 200, map[string]any{"ok": true})
 	default:
 		http.NotFound(w, r)
@@ -1016,7 +1044,7 @@ func main() {
 	if err != nil {
 		log.Printf("[%s] เปิดอยู่แล้ว -> เปิดหน้าต่างเดิม", appName)
 		if !*noWindow {
-			openWindow(localURL, isKiosk)
+			openWindow(*port, isKiosk)
 		}
 		return
 	}
@@ -1047,7 +1075,7 @@ func main() {
 
 	log.Printf("%s %s | %s (%s, %s) | %s | mobile %s", appName, version, cfg.Name, lanIP(), osName(), localURL, s.mobileURL())
 	if !*noWindow && !*background {
-		time.AfterFunc(400*time.Millisecond, func() { openWindow(localURL, isKiosk) })
+		time.AfterFunc(400*time.Millisecond, func() { openWindow(*port, isKiosk) })
 	}
 	srv := &http.Server{Handler: h, ErrorLog: log.New(io.Discard, "", 0)}
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
