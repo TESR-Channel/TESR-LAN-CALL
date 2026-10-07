@@ -38,6 +38,14 @@ header{background:var(--black);border-bottom:3px solid var(--crimson);padding:14
 .net .dot{width:10px;height:10px;border-radius:50%;background:currentColor}
 .ghost{background:none;border:1px solid #3A3A3A;border-radius:999px;padding:8px 16px;color:var(--ink);min-height:44px}
 .ghost:hover{border-color:var(--gold);color:var(--gold)}
+.winbar{display:flex;border:1px solid #3A3A3A;border-radius:999px;overflow:hidden}
+.wb{background:none;border:0;color:var(--ink);display:flex;align-items:center;gap:7px;padding:0 14px;min-height:44px;font-size:15px;white-space:nowrap}
+.wb+.wb{border-left:1px solid #3A3A3A}
+.wb:hover{color:var(--gold);background:#1C1C1C}
+.wb.wclose:hover{background:var(--red);color:#fff}
+.wb svg{flex:0 0 auto}
+.quiet{align-self:flex-start;color:var(--muted);border-color:#2E2E2E}
+@media (max-width:1180px){.wb span{display:none}.wb{padding:0 12px}}
 main{max-width:1200px;margin:0 auto;padding:32px;display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px}
 #list{flex:999 1 560px;min-width:0;overflow:hidden}
@@ -127,7 +135,12 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
   <div class="hright">
     <div class="net off" id="net"><span class="dot"></span><span id="nettext">ยังไม่เชื่อมต่อ</span></div>
     <button class="ghost" id="helpBtn">วิธีใช้</button>
-    <button class="ghost desk-only" id="quitBtn">ปิดโปรแกรม</button>
+    <div class="winbar desk-only" role="group" aria-label="หน้าต่างโปรแกรม">
+      <button class="wb" id="wMin" hidden></button>
+      <button class="wb" id="wSize" hidden></button>
+      <button class="wb" id="wFull"></button>
+      <button class="wb wclose" id="wClose"></button>
+    </div>
   </div>
 </header>
 
@@ -153,7 +166,8 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
       <label class="chk desk-only">เปิดโปรแกรมเองตอนเปิดเครื่อง<input type="checkbox" id="boot"></label>
       <label class="chk desk-only">ไม่ให้คอมหลับ (มือถือ/iPad โทรเข้าได้ตลอด)<input type="checkbox" id="awake"></label>
       <label class="chk desk-only">โหมดหุ่นยนต์ / จอแสดงผล<input type="checkbox" id="robot"></label>
-      <p class="note desk-only">โหมดหุ่นยนต์: เปิดเต็มจอและรับสายอัตโนมัติทุกสาย เต็มจอจะมีผลเมื่อเปิดโปรแกรมครั้งถัดไป</p>
+      <p class="note desk-only">โหมดหุ่นยนต์: เปิดเต็มจอและรับสายอัตโนมัติทุกสาย กด Esc หรือปุ่ม "ออกจากเต็มจอ" มุมขวาบนเพื่อออกจากเต็มจอ</p>
+      <button class="ghost quiet desk-only" id="quitBtn">ปิดโปรแกรมทั้งหมด (เครื่องนี้จะรับสายไม่ได้)</button>
       <label class="chk mob-only">ไม่ให้หน้าจอดับ<input type="checkbox" id="wake" checked></label>
       <p class="note mob-only" id="viaLine"></p>
     </section>
@@ -205,6 +219,7 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
     <button class="round" id="camBtn" aria-label="ปิดกล้อง"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></svg></button>
     <button class="round" id="flipBtn" aria-label="สลับกล้องหน้าหลัง"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/></svg></button>
     <button class="round desk-only" id="shareBtn" aria-label="แชร์หน้าจอ"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg></button>
+    <button class="round desk-only" id="fsBtn" aria-label="เต็มจอ"></button>
     <button class="hang" id="hangBtn">วางสาย</button>
   </div>
 </div>
@@ -218,7 +233,8 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
       <li>กด "โทร" ที่ชื่อปลายทาง ปลายทางจะมีเสียงเรียกและปุ่ม "รับสาย"</li>
       <li>ระหว่างคุย ปิดหรือเปิดไมค์ กล้อง และแชร์หน้าจอได้ กด "วางสาย" เมื่อคุยเสร็จ</li>
     </ol>
-    <p style="margin:0">บนคอม ปิดหน้าต่างนี้ได้ โปรแกรมยังทำงานอยู่เบื้องหลัง เมื่อมีสายเข้าหน้าต่างจะเด้งขึ้นมาเอง ถ้าต้องการปิดจริงให้กด "ปิดโปรแกรม"</p>
+    <p style="margin:0">บนคอม ใช้ปุ่มมุมขวาบนจัดหน้าต่าง: "พับเก็บ" ลงแถบงาน, "จอเล็ก" ย่อเป็นหน้าต่างเล็กชิดขวาเพื่อใช้โปรแกรมอื่นไปด้วย, "เต็มจอ" (กด Esc เพื่อออก) และ "ปิดหน้าต่าง" ลากขอบหน้าต่างเพื่อปรับขนาดเองก็ได้</p>
+    <p style="margin:0">ปิดหน้าต่างหรือพับเก็บแล้ว โปรแกรมยังรับสายได้ เมื่อมีสายเข้าหน้าต่างจะเด้งขึ้นมาเอง ถ้าต้องการหยุดโปรแกรมจริงให้กด "ปิดโปรแกรมทั้งหมด" ในกล่อง "เครื่องนี้"</p>
     <p style="margin:0">บนมือถือและ iPad ต้องเปิดแอปไว้หน้าจอและไม่ล็อกจอถึงจะรับสายได้</p>
     <p style="margin:0">เครื่องที่ติดกับหุ่นยนต์: เปิด "โหมดหุ่นยนต์ / จอแสดงผล" สายที่โทรเข้าจะรับเองทันที</p>
     <p style="margin:0;color:var(--muted)" id="verline"></p>
@@ -308,7 +324,7 @@ function connectEvents(){
     else if (ev.type === 'settings') applySettings(ev.settings);
     else if (ev.type === 'peers'){ peers = ev.peers; renderPeers(); renderHist(); }
     else if (ev.type === 'msg') onPeerMsg(ev.from, ev.from_name, ev.msg || {}).catch(err => console.error(err));
-    else if (ev.type === 'quit'){ es.close(); document.body.innerHTML = '<p style="padding:3rem;font-size:20px">ปิดโปรแกรมแล้ว ปิดหน้าต่างนี้ได้เลย</p>'; }
+    else if (ev.type === 'quit'){ es.close(); document.body.innerHTML = '<p style="padding:3rem;font-size:20px">ปิดโปรแกรมแล้ว</p>'; setTimeout(() => window.close(), 300); }
   };
 }
 function applySettings(s){
@@ -386,7 +402,12 @@ $('#name').onchange = () => {
   api('/api/settings', { name: n });
 };
 $('#auto').onchange = () => MOBILE ? store.set('tlc-auto', $('#auto').checked ? '1' : '0') : api('/api/settings', { auto_answer: $('#auto').checked });
-$('#robot').onchange = async () => { const r = await api('/api/settings', { robot_mode: $('#robot').checked }); toast(r.ok ? ($('#robot').checked ? 'เปิดโหมดหุ่นยนต์แล้ว ปิดแล้วเปิดโปรแกรมใหม่เพื่อเข้าเต็มจอ' : 'ปิดโหมดหุ่นยนต์แล้ว') : r.error); };
+$('#robot').onchange = async () => {
+  const on = $('#robot').checked, r = await api('/api/settings', { robot_mode: on });
+  if (!r.ok) return toast(r.error);
+  if (on) await win('fullscreen'); else if (winState === 'fullscreen') await win('normal');
+  toast(on ? 'เปิดโหมดหุ่นยนต์แล้ว (เต็มจอ + รับสายอัตโนมัติ) กด Esc เพื่อออกจากเต็มจอ' : 'ปิดโหมดหุ่นยนต์แล้ว');
+};
 $('#awake').onchange = () => api('/api/settings', { awake: $('#awake').checked });
 $('#boot').onchange = async () => { const r = await api('/api/settings', { autostart: $('#boot').checked }); if (!r.ok) toast(r.error); };
 $('#cam').onchange = () => store.set('tlc-cam', $('#cam').value);
@@ -397,6 +418,76 @@ $('#fixNetBtn').onclick = async () => {
   b.disabled = false; b.textContent = 'ซ่อมการเชื่อมต่อมือถือ';
   toast(r.ok ? r.msg : r.error);
 };
+/* ---------- หน้าต่างโปรแกรม (เฉพาะคอม) ---------- */
+let winState = 'normal', winCtl = false, winT = null;
+const SVG = p => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const WI = {
+  min: SVG('<path d="M5 18h14"/>'),
+  small: SVG('<rect x="3" y="4" width="18" height="16" rx="2" opacity=".4"/><rect x="13" y="7" width="5" height="10" rx="1"/>'),
+  big: SVG('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>'),
+  full: SVG('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
+  unfull: SVG('<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>'),
+  close: SVG('<path d="M6 6l12 12M18 6L6 18"/>')
+};
+function setWb(b, icon, label, tip){
+  b.innerHTML = icon; const sp = document.createElement('span'); sp.textContent = label; b.append(sp);
+  b.title = tip || label; b.setAttribute('aria-label', tip || label);
+}
+function isFull(){ return winState === 'fullscreen' || !!document.fullscreenElement; }
+function isSmallWin(){ return innerWidth < 700; }
+function renderWin(){
+  if (MOBILE) return;
+  const full = isFull();
+  setWb($('#wMin'), WI.min, 'พับเก็บ', 'พับเก็บหน้าต่างลงแถบงาน (ยังรับสายได้)');
+  if (isSmallWin()) setWb($('#wSize'), WI.big, 'จอใหญ่', 'ขยายเต็มหน้าต่าง');
+  else setWb($('#wSize'), WI.small, 'จอเล็ก', 'ย่อเป็นหน้าต่างเล็กชิดขวา ใช้โปรแกรมอื่นไปด้วยได้');
+  setWb($('#wFull'), full ? WI.unfull : WI.full, full ? 'ออกจากเต็มจอ' : 'เต็มจอ', full ? 'ออกจากเต็มจอ (Esc)' : 'เต็มจอ (กด Esc เพื่อออก)');
+  setWb($('#wClose'), WI.close, 'ปิดหน้าต่าง', 'ปิดหน้าต่าง โปรแกรมยังรับสายได้ หน้าต่างจะเด้งขึ้นเมื่อมีสายเข้า');
+  $('#wMin').hidden = $('#wSize').hidden = !winCtl;
+  const fb = $('#fsBtn'); fb.innerHTML = full ? WI.unfull : WI.full; fb.setAttribute('aria-label', full ? 'ออกจากเต็มจอ' : 'เต็มจอ');
+}
+async function win(action, extra){
+  if (MOBILE) return { ok: false };
+  const r = await api('/api/window', { action, ...(extra || {}) });
+  winCtl = !!r.ok;
+  if (r.ok && r.state && r.state !== 'closed') winState = r.state;
+  renderWin(); return r;
+}
+async function toggleFull(){
+  if (document.fullscreenElement){ try { await document.exitFullscreen(); } catch (e) {} renderWin(); return; }
+  if (winCtl){
+    const r = await win(winState === 'fullscreen' ? 'normal' : 'fullscreen');
+    if (r.ok && r.state === 'fullscreen') toast('กด Esc หรือปุ่ม "ออกจากเต็มจอ" เพื่อออกจากเต็มจอ');
+    if (r.ok) return;
+  }
+  try { await document.documentElement.requestFullscreen(); toast('กด Esc เพื่อออกจากเต็มจอ'); }
+  catch (e){ toast('กด F11 เพื่อเข้าหรือออกจากเต็มจอ'); }
+  renderWin();
+}
+function smallWin(){
+  const s = screen, w = Math.min(500, s.availWidth), h = Math.min(860, s.availHeight - 24);
+  return win('small', { bounds: { left: Math.round((s.availLeft || 0) + s.availWidth - w - 12), top: Math.round((s.availTop || 0) + 12), width: w, height: h } });
+}
+async function closeWin(){
+  if (call){
+    if (!confirm('กำลังคุยสายอยู่ ปิดหน้าต่างจะวางสายนี้ ต้องการปิดไหม?')) return;
+    endCall(true, null); await new Promise(r => setTimeout(r, 300));
+  }
+  const r = await win('close');
+  if (!r.ok){ window.close(); setTimeout(() => toast('ปิดด้วยปุ่ม X ของหน้าต่าง หรือกด Alt+F4 (Mac: Cmd+W)'), 400); }
+}
+$('#wMin').onclick = () => win('minimize');
+$('#wSize').onclick = () => isSmallWin() ? win('maximize') : smallWin();
+$('#wFull').onclick = toggleFull;
+$('#fsBtn').onclick = toggleFull;
+$('#wClose').onclick = closeWin;
+addEventListener('resize', () => { renderWin(); clearTimeout(winT); winT = setTimeout(() => win('state'), 250); });
+document.addEventListener('fullscreenchange', renderWin);
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || MOBILE || document.querySelector('dialog[open]')) return;
+  if (winState === 'fullscreen' && winCtl) win('normal');
+});
+
 $('#quitBtn').onclick = () => { if (confirm('ปิดโปรแกรม TESR LAN Call ทั้งหมด? เครื่องนี้จะรับสายไม่ได้จนกว่าจะเปิดใหม่ (ถ้าแค่ปิดหน้าต่าง โปรแกรมยังรับสายได้)')) api('/api/quit'); };
 
 // iOS: โหมดเสียง "playback" (ใช้ตอนเสียงเรียกเข้า) ห้ามใช้ตอนเปิดไมค์ ต้องสลับกลับก่อนขอกล้อง/ไมค์ทุกครั้ง
@@ -701,6 +792,7 @@ $('#nameOk').onclick = () => {
 };
 function start(){
   connectEvents(); listDevices(); keepAwake();
+  if (!MOBILE){ renderWin(); win('state'); }
   if (!MOBILE && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
   setTimeout(() => {
     const c = audioCtx();
