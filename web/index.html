@@ -4,9 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0A0A0A">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="TESR Call">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/assets/icon-64.png">
@@ -46,6 +43,19 @@ header{background:var(--black);border-bottom:3px solid var(--crimson);padding:14
 .wb svg{flex:0 0 auto}
 .quiet{align-self:flex-start;color:var(--muted);border-color:#2E2E2E}
 @media (max-width:1180px){.wb span{display:none}.wb{padding:0 12px}}
+.fwbad{background:rgba(179,38,30,.16);border:1px solid var(--red);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.6}
+.fwbad b{color:#F0A39C}
+.fixbtn{align-self:flex-start;background:var(--red);color:#fff;border:0;border-radius:999px;padding:10px 20px;font-weight:700;min-height:44px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:none;border:1px solid #3A3A3A;color:var(--ink);border-radius:999px;padding:6px 14px;font-size:14px;min-height:36px}
+.chip.on{border-color:var(--gold);color:var(--gold);font-weight:600}
+.stat{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.stat h3{margin:0;font-size:15px;color:var(--ink)}
+.dev{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.5}
+.dev .d{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:0 0 auto;background:#666}
+.dev.ok .d{background:var(--free)}.dev.warn .d{background:#E5736B}.dev.wait .d{background:var(--gold)}
+.dev .m{color:var(--muted)}
+.fwtop{background:var(--red);color:#fff;border:0;width:100%;padding:10px 16px;font-weight:600;text-align:center;font-size:15px}
 main{max-width:1200px;margin:0 auto;padding:32px;display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px}
 #list{flex:999 1 560px;min-width:0;overflow:hidden}
@@ -126,6 +136,7 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
 </style>
 </head>
 <body>
+<button class="fwtop desk-only" id="fwTop" hidden>มือถือ/iPad ยังเข้าคอมนี้ไม่ได้ เพราะไฟร์วอลล์กั้นอยู่ กดตรงนี้เพื่อแก้ (กด "ใช่" ในหน้าต่างที่เด้งขึ้น)</button>
 <button class="banner" id="soundBanner">แตะตรงนี้หนึ่งครั้ง เพื่อเปิดเสียงเรียกเข้า</button>
 <header>
   <div class="brand">
@@ -170,22 +181,32 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
       <button class="ghost quiet desk-only" id="quitBtn">ปิดโปรแกรมทั้งหมด (เครื่องนี้จะรับสายไม่ได้)</button>
       <label class="chk mob-only">ไม่ให้หน้าจอดับ<input type="checkbox" id="wake" checked></label>
       <p class="note mob-only" id="viaLine"></p>
+      <p class="note mob-only">ทำไอคอนไว้เปิดครั้งต่อไป: กดปุ่มแชร์ แล้วเลือก "เพิ่มไปยังหน้าจอโฮม"</p>
     </section>
 
     <section class="card desk-only" id="pairCard">
       <h2>ใช้บนมือถือหรือ iPad</h2>
+      <div class="fwbad" id="fwBox" hidden>
+        <div id="fwText"></div>
+        <button class="fixbtn" id="fwFixBtn">แก้ตอนนี้</button>
+      </div>
+      <div class="chips" id="netChips" hidden></div>
       <div class="pair" id="pairBox">
         <img id="qrImg" alt="QR code สำหรับเปิดบนมือถือ" hidden>
         <ol>
-          <li>ต่อ Wi-Fi วงเดียวกับเครื่องนี้</li>
-          <li>สแกน QR หรือพิมพ์ลิงก์ด้านล่าง</li>
-          <li>ถ้าขึ้นคำเตือนความปลอดภัย ให้กด "แสดงรายละเอียด" แล้ว "ไปที่เว็บไซต์นี้"</li>
-          <li>กด แชร์ แล้ว "เพิ่มไปยังหน้าจอโฮม" จะได้ไอคอนไว้เปิดครั้งต่อไป</li>
+          <li>ต่อ Wi-Fi วงเดียวกับคอมนี้</li>
+          <li>เปิดกล้อง iPad/iPhone สแกน QR หรือพิมพ์ลิงก์ด้านล่างใน Safari</li>
+          <li>กด "เข้าใช้งาน" แล้วทำตามที่หน้าจอมือถือบอก</li>
         </ol>
       </div>
       <div class="note" id="wifiLine"></div>
       <div class="url" id="pairUrl"></div>
       <div class="note" id="pairAlt" hidden></div>
+      <div class="note" id="fwNotes" hidden></div>
+      <div class="stat">
+        <h3>มือถือ / iPad ที่ติดต่อเข้ามา</h3>
+        <div id="devList"></div>
+      </div>
       <div class="note"><b style="color:var(--ink)">มือถือเปิดไม่ขึ้น?</b> ตรวจว่ามือถือต่อ Wi-Fi วงเดียวกับคอมนี้<span id="subnetHint"></span> แล้วกดปุ่มด้านล่างหนึ่งครั้ง (จะมีหน้าต่างขอสิทธิ์ ให้กด "ใช่")</div>
       <button class="ghost" id="fixNetBtn">ซ่อมการเชื่อมต่อมือถือ</button>
     </section>
@@ -346,16 +367,79 @@ function applySettings(s){
   if (s.wifi){ wl.append('คอมนี้ต่อ Wi-Fi ชื่อ '); b.textContent = s.wifi; wl.append(b, ' มือถือและ iPad ต้องต่อ Wi-Fi ชื่อนี้'); }
   else { b.textContent = 'มือถือและ iPad ต้องต่อ Wi-Fi ของเราเตอร์ตัวเดียวกับคอมนี้'; wl.append(b, ' (Wi-Fi สำหรับแขกมักเชื่อมกันไม่ได้)'); }
   if (s.mobile_url){
-    $('#pairUrl').textContent = s.mobile_url;
-    const alt = (s.mobile_urls || []).slice(1);
-    $('#pairAlt').hidden = !alt.length;
-    $('#pairAlt').textContent = alt.length ? 'ถ้าสแกนแล้วเปิดไม่ขึ้น ลองพิมพ์ลิงก์นี้ในมือถือแทน: ' + alt.join('  หรือ  ') : '';
-    $('#subnetHint').textContent = ` (IP ของมือถือต้องขึ้นต้นด้วย ${s.ip.split('.').slice(0, 3).join('.')}.)`;
-    if (s.qr){ $('#qrImg').src = '/api/qr.png?' + Date.now(); $('#qrImg').hidden = false; }
+    renderNets(s);
   } else {
     $('#pairBox').hidden = true;
     $('#pairUrl').textContent = s.https_error || 'โหมดมือถือยังไม่พร้อม';
   }
+}
+
+/* ---------- QR และสถานะมือถือ (เฉพาะคอม) ---------- */
+let netSel = '';
+function renderNets(s){
+  const nets = (s.nets || []).filter(n => n.ip);
+  if (!nets.some(n => n.ip === netSel)) netSel = nets.length ? nets[0].ip : s.ip;
+  const url = `http://${netSel}:${s.port}`;
+  $('#pairUrl').textContent = url;
+  $('#subnetHint').textContent = ` (IP ของมือถือต้องขึ้นต้นด้วย ${netSel.split('.').slice(0, 3).join('.')}.)`;
+  if (s.qr){ $('#qrImg').src = `/api/qr.png?ip=${encodeURIComponent(netSel)}&t=${Date.now()}`; $('#qrImg').hidden = false; }
+  const box = $('#netChips'); box.textContent = '';
+  box.hidden = nets.length < 2;
+  $('#pairAlt').hidden = nets.length < 2;
+  $('#pairAlt').textContent = nets.length > 1 ? 'คอมนี้ต่ออยู่หลายเครือข่าย เลือก QR ของเครือข่ายเดียวกับที่มือถือต่ออยู่' : '';
+  for (const n of nets){
+    const b = document.createElement('button'); b.className = 'chip' + (n.ip === netSel ? ' on' : '');
+    b.textContent = `${n.name || 'เครือข่าย'} · ${n.ip}`;
+    b.onclick = () => { netSel = n.ip; renderNets(settings); };
+    box.append(b);
+  }
+}
+const STAGES = {
+  online:  ['ok', 'ใช้งานอยู่'],
+  page:    ['ok', 'เปิดหน้าโปรแกรมแล้ว'],
+  profile: ['wait', 'ดาวน์โหลดใบรับรองแล้ว รอติดตั้งในแอปการตั้งค่า'],
+  start:   ['wait', 'เปิดหน้าแรกแล้ว รอกด "เข้าใช้งาน"'],
+  hello:   ['wait', 'กำลังเชื่อมต่อ'],
+  cert:    ['warn', 'ติดที่หน้าเตือนความปลอดภัย ให้กด "แสดงรายละเอียด" แล้ว "ไปที่เว็บไซต์นี้" หรือติดตั้งใบรับรองตามหน้าจอมือถือ'],
+  left:    ['off', 'ปิดแอปหรือล็อกจอแล้ว']
+};
+function agoText(s){ return s < 60 ? 'เมื่อสักครู่' : s < 3600 ? `${Math.round(s / 60)} นาทีที่แล้ว` : 'นานแล้ว'; }
+function renderDiag(d){
+  const box = $('#devList'); box.textContent = '';
+  const names = {}; (d.online || []).forEach(o => { names[o.ip] = o.name; });
+  const list = d.devices || [];
+  if (!list.length){
+    const p = document.createElement('div'); p.className = 'note';
+    p.textContent = 'ยังไม่มีเครื่องไหนติดต่อเข้ามา ลองสแกน QR ด้วย iPad/iPhone ดู ถ้าสแกนแล้วมือถือขึ้นว่า "เชื่อมต่อไม่ได้" และรายการนี้ยังว่างอยู่ แปลว่ามือถือมาไม่ถึงคอมนี้: ตรวจว่าต่อ Wi-Fi ชื่อเดียวกัน แล้วกด "ซ่อมการเชื่อมต่อมือถือ"';
+    box.append(p);
+  }
+  for (const v of list.slice(0, 6)){
+    const [cls, text] = STAGES[v.stage] || ['off', v.stage];
+    const row = document.createElement('div'); row.className = 'dev ' + cls;
+    const dot = document.createElement('span'); dot.className = 'd';
+    const t = document.createElement('div');
+    const who = names[v.ip] ? `${names[v.ip]} (${v.kind || 'มือถือ'})` : (v.kind || 'อุปกรณ์');
+    const b = document.createElement('b'); b.textContent = who;
+    const m = document.createElement('span'); m.className = 'm'; m.textContent = ` · ${v.ip} · ${agoText(v.ago)}`;
+    t.append(b, m, document.createElement('br'), text);
+    row.append(dot, t); box.append(row);
+  }
+  const fw = d.fw || {};
+  const probs = fw.problems || [];
+  $('#fwBox').hidden = !probs.length; $('#fwTop').hidden = !probs.length;
+  $('#fwText').textContent = probs.join(' ');
+  $('#fwNotes').hidden = !(fw.notes || []).length;
+  $('#fwNotes').textContent = (fw.notes || []).join(' ');
+}
+let diagT = null;
+async function pollDiag(){
+  clearTimeout(diagT);
+  if (MOBILE) return;
+  if (document.visibilityState === 'visible'){
+    const r = await api('/api/diag');
+    if (r.ok) renderDiag(r);
+  }
+  diagT = setTimeout(pollDiag, 4000);
 }
 
 /* ---------- peer list ---------- */
@@ -412,12 +496,18 @@ $('#awake').onchange = () => api('/api/settings', { awake: $('#awake').checked }
 $('#boot').onchange = async () => { const r = await api('/api/settings', { autostart: $('#boot').checked }); if (!r.ok) toast(r.error); };
 $('#cam').onchange = () => store.set('tlc-cam', $('#cam').value);
 $('#mic').onchange = () => store.set('tlc-mic', $('#mic').value);
-$('#fixNetBtn').onclick = async () => {
-  const b = $('#fixNetBtn'); b.disabled = true; b.textContent = 'กำลังตั้งค่า... กด "ใช่" ในหน้าต่างที่เด้งขึ้น';
+async function fixNet(){
+  const bs = ['#fixNetBtn', '#fwFixBtn', '#fwTop'].map(s => $(s));
+  const labels = bs.map(b => b.textContent);
+  bs.forEach(b => { b.disabled = true; b.textContent = 'กำลังตั้งค่า... กด "ใช่" ในหน้าต่างที่เด้งขึ้น'; });
   const r = await api('/api/fix-network');
-  b.disabled = false; b.textContent = 'ซ่อมการเชื่อมต่อมือถือ';
+  bs.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; });
   toast(r.ok ? r.msg : r.error);
-};
+  pollDiag();
+}
+$('#fixNetBtn').onclick = fixNet;
+$('#fwFixBtn').onclick = fixNet;
+$('#fwTop').onclick = fixNet;
 /* ---------- หน้าต่างโปรแกรม (เฉพาะคอม) ---------- */
 let winState = 'normal', winCtl = false, winT = null;
 const SVG = p => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
@@ -792,7 +882,7 @@ $('#nameOk').onclick = () => {
 };
 function start(){
   connectEvents(); listDevices(); keepAwake();
-  if (!MOBILE){ renderWin(); win('state'); }
+  if (!MOBILE){ renderWin(); win('state'); pollDiag(); }
   if (!MOBILE && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
   setTimeout(() => {
     const c = audioCtx();

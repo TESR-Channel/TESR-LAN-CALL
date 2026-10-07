@@ -6,23 +6,20 @@
 package main
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
+	"bytes"
 	"crypto/rand"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"embed"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
+	"html/template"
 	"io"
 	"io/fs"
 	"log"
-	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -40,7 +37,7 @@ import (
 
 const (
 	appName      = "TESR LAN Call"
-	version      = "2.4.0"
+	version      = "2.5.0"
 	peerTimeout  = 8 * time.Second
 	mobileGrace  = 45 * time.Second
 	pendingTTL   = 30 * time.Second
@@ -51,6 +48,16 @@ const (
 
 //go:embed web/index.html
 var pageHTML []byte
+
+// หน้าแรกที่ QR พาไป (http ธรรมดา เปิดได้เสมอ) แล้วพาเข้าหน้าโปรแกรมแบบ https ให้เอง
+//
+//go:embed web/start.html
+var startHTML string
+
+var startTpl = template.Must(template.New("start").Parse(startHTML))
+
+// รูป 1x1 ให้หน้าแรกทดสอบว่ามือถือเชื่อถือ https ของคอมนี้แล้วหรือยัง
+var pingPNG, _ = base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")
 
 //go:embed assets
 var assetsFS embed.FS
@@ -122,10 +129,15 @@ func primaryIP() string {
 // การ์ดเครือข่ายเสมือน (VPN, WSL, Docker, VM) ที่มือถือเข้าถึงไม่ได้
 var virtualIf = regexp.MustCompile(`(?i)vethernet|virtualbox|vmware|vmnet|hyper-v|docker|podman|virbr|lxd|cni|flannel|veth|wsl|tailscale|zerotier|^zt|^utun|^tun|^tap|^wg|bluetooth|^llw|^awdl|^anpi|^bridge|^br-`)
 
+type lanNet struct {
+	IP string `json:"ip"`
+	If string `json:"name"` // ชื่อการ์ดเครือข่าย เช่น Wi-Fi, Ethernet
+}
+
 // IP ในวง LAN ที่มือถือใช้ได้ เรียงจากที่น่าจะถูกที่สุด (การ์ดที่ออกเน็ตก่อน)
-func lanIPs() []string {
+func lanNets() []lanNet {
 	primary := primaryIP()
-	var good []string
+	var good []lanNet
 	ifs, _ := net.Interfaces()
 	for _, ifc := range ifs {
 		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 || virtualIf.MatchString(ifc.Name) {
@@ -135,24 +147,49 @@ func lanIPs() []string {
 		for _, a := range addrs {
 			if n, ok := a.(*net.IPNet); ok {
 				if ip := n.IP.To4(); ip != nil && ip.IsPrivate() {
-					good = append(good, ip.String())
+					good = append(good, lanNet{ip.String(), ifc.Name})
 				}
 			}
 		}
 	}
-	out := []string{}
-	for _, g := range good {
-		if g == primary {
-			out = append(out, g)
-		}
-	}
-	for _, g := range good {
-		if g != primary {
-			out = append(out, g)
+	return orderNets(good, primary)
+}
+
+// มือถืออยู่บน Wi-Fi: ถ้าคอมต่อทั้งสาย LAN และ Wi-Fi ให้ IP ของ Wi-Fi ขึ้นก่อน (QR แรกจะได้ถูกวง)
+// จากนั้นการ์ดที่ออกเน็ต แล้วตามด้วยที่เหลือ
+func orderNets(good []lanNet, primary string) []lanNet {
+	out := []lanNet{}
+	for _, pass := range []func(lanNet) bool{
+		func(g lanNet) bool { return wirelessIf.MatchString(g.If) && g.IP == primary },
+		func(g lanNet) bool { return wirelessIf.MatchString(g.If) },
+		func(g lanNet) bool { return g.IP == primary },
+		func(g lanNet) bool { return true },
+	} {
+		for _, g := range good {
+			if !pass(g) {
+				continue
+			}
+			dup := false
+			for _, o := range out {
+				dup = dup || o.IP == g.IP
+			}
+			if !dup {
+				out = append(out, g)
+			}
 		}
 	}
 	if len(out) == 0 {
-		out = append(out, primary)
+		out = append(out, lanNet{IP: primary})
+	}
+	return out
+}
+
+var wirelessIf = regexp.MustCompile(`(?i)wi-?fi|wlan|wireless|^wl|^wlp|ไร้สาย`)
+
+func lanIPs() []string {
+	var out []string
+	for _, n := range lanNets() {
+		out = append(out, n.IP)
 	}
 	return out
 }
@@ -163,6 +200,7 @@ func lanIP() string { return lanIPs()[0] }
 
 type Endpoint struct {
 	ID, Name, Kind, Dev string
+	IP                  string // มือถือ: IP ของเครื่อง
 	clients             map[chan []byte]struct{}
 	Busy                bool
 	Left                time.Time
@@ -188,6 +226,7 @@ type State struct {
 	port, https, disc int
 	httpsOK           bool
 	httpsErr          string
+	certs             *certStore
 	local             *Endpoint
 	endpoints         map[string]*Endpoint
 	peers             map[string]*Peer
@@ -203,11 +242,14 @@ func (s *State) info(ep *Endpoint) map[string]any {
 		"os": ep.Dev, "kind": ep.Kind, "busy": ep.Busy, "ui": len(ep.clients) > 0 || (ep == s.local && s.canWake)}
 }
 
+// ลิงก์สำหรับมือถือ: หน้าแรกแบบ http (พิมพ์ง่าย เปิดได้เสมอ) ซึ่งจะพาเข้า https ให้เอง
+func (s *State) startURL(ip string) string { return fmt.Sprintf("http://%s:%d", ip, s.port) }
+
 func (s *State) mobileURLs() []string {
 	out := []string{}
 	if s.httpsOK {
 		for _, ip := range lanIPs() {
-			out = append(out, fmt.Sprintf("https://%s:%d/", ip, s.https))
+			out = append(out, s.startURL(ip))
 		}
 	}
 	return out
@@ -231,6 +273,10 @@ func (s *State) settingsFor(ep *Endpoint) map[string]any {
 		m["port"] = s.port
 		m["mobile_url"] = s.mobileURL()
 		m["mobile_urls"] = s.mobileURLs()
+		m["nets"] = lanNets()
+		if s.certs != nil {
+			m["ca_name"] = s.certs.caName()
+		}
 		m["os"] = runtime.GOOS
 		m["qr"] = s.httpsOK
 		m["https_error"] = s.httpsErr
@@ -532,47 +578,6 @@ func httpJSON(url string, body any) (map[string]any, int, error) {
 	return out, resp.StatusCode, nil
 }
 
-// ======================================================================== https cert
-
-func ensureCert(ips []string) (tls.Certificate, error) {
-	ip := strings.Join(ips, ",")
-	certP, keyP, metaP := filepath.Join(dataDir, "cert.pem"), filepath.Join(dataDir, "key.pem"), filepath.Join(dataDir, "cert-ip.txt")
-	if m, err := os.ReadFile(metaP); err == nil && strings.TrimSpace(string(m)) == ip {
-		if c, err := tls.LoadX509KeyPair(certP, keyP); err == nil {
-			return c, nil
-		}
-	}
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 62))
-	tpl := x509.Certificate{
-		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: appName, Organization: []string{"TESR Co., Ltd."}},
-		NotBefore:    time.Now().Add(-24 * time.Hour),
-		NotAfter:     time.Now().Add(800 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:     []string{"localhost"},
-		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
-	}
-	for _, a := range ips {
-		if p := net.ParseIP(a); p != nil {
-			tpl.IPAddresses = append(tpl.IPAddresses, p)
-		}
-	}
-	der, err := x509.CreateCertificate(rand.Reader, &tpl, &tpl, &key.PublicKey, key)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	kb, _ := x509.MarshalECPrivateKey(key)
-	_ = os.WriteFile(certP, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644)
-	_ = os.WriteFile(keyP, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: kb}), 0o600)
-	_ = os.WriteFile(metaP, []byte(ip), 0o644)
-	return tls.LoadX509KeyPair(certP, keyP)
-}
-
 // ======================================================================== http
 
 var idRe = regexp.MustCompile(`^[a-f0-9]{8,32}$`)
@@ -585,10 +590,17 @@ func isLocal(r *http.Request) bool {
 
 func remoteIP(r *http.Request) string {
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
-	if ip := net.ParseIP(host); ip != nil && ip.To4() != nil {
-		return ip.To4().String()
+	if ip := net.ParseIP(host); ip != nil {
+		return normIP(ip)
 	}
 	return host
+}
+
+func normIP(ip net.IP) string {
+	if v4 := ip.To4(); v4 != nil {
+		return v4.String()
+	}
+	return ip.String()
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -631,7 +643,7 @@ func (s *State) routes() http.Handler {
 	mux.HandleFunc("/manifest.webmanifest", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/manifest+json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"name": appName, "short_name": "TESR Call", "start_url": "/",
-			"display": "standalone", "background_color": "#0A0A0A", "theme_color": "#0A0A0A", "lang": "th",
+			"display": "browser", "background_color": "#0A0A0A", "theme_color": "#0A0A0A", "lang": "th",
 			"icons": []map[string]string{
 				{"src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png"},
 				{"src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png"}}})
@@ -644,12 +656,47 @@ func (s *State) routes() http.Handler {
 	})
 	mux.HandleFunc("/peer/msg", s.peerMsg)
 	mux.HandleFunc("/api/events", s.events)
-	mux.HandleFunc("/api/qr.png", func(w http.ResponseWriter, r *http.Request) {
-		u := s.mobileURL()
-		if !isLocal(r) || u == "" {
+	mux.HandleFunc("/ping.png", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(pingPNG)
+	})
+	// ใบรับรองของคอมนี้: iPhone/iPad (โปรไฟล์) และ Android (.crt)
+	mux.HandleFunc("/tesr-lan-call.mobileconfig", func(w http.ResponseWriter, r *http.Request) {
+		if s.certs == nil {
 			http.NotFound(w, r)
 			return
 		}
+		diag.mark(remoteIP(r), "profile", r.UserAgent())
+		w.Header().Set("Content-Type", "application/x-apple-aspen-config")
+		w.Header().Set("Content-Disposition", `attachment; filename="TESR-LAN-Call.mobileconfig"`)
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(s.certs.mobileconfig())
+	})
+	mux.HandleFunc("/tesr-lan-call-ca.crt", func(w http.ResponseWriter, r *http.Request) {
+		if s.certs == nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/x-x509-ca-cert")
+		w.Header().Set("Content-Disposition", `attachment; filename="TESR-LAN-Call-CA.crt"`)
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(s.certs.caDER())
+	})
+	mux.HandleFunc("/start", s.startPage)
+	mux.HandleFunc("/api/qr.png", func(w http.ResponseWriter, r *http.Request) {
+		if !isLocal(r) || !s.httpsOK {
+			http.NotFound(w, r)
+			return
+		}
+		ips := lanIPs()
+		ip := ips[0]
+		for _, x := range ips {
+			if x == r.URL.Query().Get("ip") {
+				ip = x
+			}
+		}
+		u := s.startURL(ip)
 		png, err := qrcode.Encode(u, qrcode.Medium, 320)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
@@ -665,23 +712,38 @@ func (s *State) routes() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		if !isLocal(r) && r.TLS == nil { // มือถือเข้าผ่าน http -> ส่งไป https (กล้องต้องใช้ https)
-			host, _, err := net.SplitHostPort(r.Host)
-			if err != nil {
-				host = r.Host
-			}
-			if s.httpsOK {
-				http.Redirect(w, r, fmt.Sprintf("https://%s:%d/", host, s.https), http.StatusFound)
-				return
-			}
-			http.Error(w, "เครื่องนี้ยังเปิดโหมดมือถือไม่ได้", 503)
+		if !isLocal(r) && r.TLS == nil { // มือถือเข้าผ่าน http -> หน้าแรกที่พาเข้า https (กล้องต้องใช้ https)
+			s.startPage(w, r)
 			return
+		}
+		if !isLocal(r) {
+			diag.mark(remoteIP(r), "page", r.UserAgent())
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(pageHTML)
 	})
 	return mux
+}
+
+func (s *State) startPage(w http.ResponseWriter, r *http.Request) {
+	if !s.httpsOK {
+		http.Error(w, "เครื่องนี้ยังเปิดโหมดมือถือไม่ได้: "+s.httpsErr, 503)
+		return
+	}
+	diag.mark(remoteIP(r), "start", r.UserAgent())
+	s.mu.Lock()
+	name := s.local.Name
+	s.mu.Unlock()
+	ca := ""
+	if s.certs != nil {
+		ca = s.certs.caName()
+	}
+	var b bytes.Buffer
+	_ = startTpl.Execute(&b, map[string]any{"Name": name, "HTTPSPort": s.https, "CAName": ca})
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(b.Bytes())
 }
 
 func (s *State) events(w http.ResponseWriter, r *http.Request) {
@@ -702,6 +764,7 @@ func (s *State) events(w http.ResponseWriter, r *http.Request) {
 				s.endpoints[id] = ep
 			}
 			ep.Name = name
+			ep.IP = remoteIP(r)
 		}
 		s.mu.Unlock()
 		if bad {
@@ -735,6 +798,10 @@ func (s *State) events(w http.ResponseWriter, r *http.Request) {
 	s.pushPeersLocked()
 	s.mu.Unlock()
 
+	if ep.Kind == "mobile" {
+		diag.mark(ep.IP, "online", r.UserAgent())
+		defer diag.mark(ep.IP, "left", "")
+	}
 	fmt.Fprintf(w, "data: %s\n\n", hello)
 	if pending != nil {
 		fmt.Fprintf(w, "data: %s\n\n", pending)
@@ -831,11 +898,26 @@ func (s *State) api(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		msg, err := fixNetwork(s.port, s.https, s.disc)
+		fw := firewallStatus(true)
 		if err != nil {
-			writeJSON(w, 200, map[string]any{"ok": false, "error": err.Error()})
+			writeJSON(w, 200, map[string]any{"ok": false, "error": err.Error(), "fw": fw})
 			return
 		}
-		writeJSON(w, 200, map[string]any{"ok": true, "msg": msg})
+		writeJSON(w, 200, map[string]any{"ok": true, "msg": msg, "fw": fw})
+	case "/api/diag":
+		if ep != s.local {
+			writeJSON(w, 403, map[string]any{"ok": false})
+			return
+		}
+		s.mu.Lock()
+		online := []map[string]any{}
+		for _, e := range s.endpoints {
+			if e.Kind == "mobile" && len(e.clients) > 0 {
+				online = append(online, map[string]any{"ip": e.IP, "name": e.Name, "dev": e.Dev})
+			}
+		}
+		s.mu.Unlock()
+		writeJSON(w, 200, map[string]any{"ok": true, "devices": diag.list(), "online": online, "fw": firewallStatus(false)})
 	case "/api/window":
 		if ep != s.local {
 			writeJSON(w, 403, map[string]any{"ok": false})
@@ -1055,17 +1137,32 @@ func main() {
 	s.endpoints = map[string]*Endpoint{s.local.ID: s.local}
 	h := s.routes()
 
-	if cert, err := ensureCert(lanIPs()); err == nil {
-		tln, err := tls.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *httpsPort), &tls.Config{Certificates: []tls.Certificate{cert}})
+	if cs, err := newCertStore(dataDir, cfg.Name); err == nil {
+		if err := cs.ensure(lanIPs()); err != nil {
+			log.Println("[cert]", err)
+		}
+		s.certs = cs
+		tcfg := &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: func(hi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			if hi.Conn != nil {
+				if a, ok := hi.Conn.RemoteAddr().(*net.TCPAddr); ok {
+					diag.mark(normIP(a.IP), "hello", "")
+				}
+			}
+			return cs.get(hi)
+		}}
+		tln, err := tls.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *httpsPort), tcfg)
 		if err == nil {
 			s.httpsOK = true
-			srv := &http.Server{Handler: h, ErrorLog: log.New(io.Discard, "", 0)}
+			srv := &http.Server{Handler: h, ErrorLog: log.New(tlsErrLog{}, "", 0)}
 			go func() { _ = srv.Serve(tln) }()
 		} else {
 			s.httpsErr = "เปิดพอร์ตมือถือไม่ได้: " + err.Error()
 		}
 	} else {
 		s.httpsErr = "สร้างใบรับรองไม่ได้: " + err.Error()
+	}
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		go firewallStatus(false)
 	}
 
 	go s.announcer()
