@@ -318,7 +318,8 @@ async function api(path, body){
     return await r.json();
   } catch (e) { return { ok: false, error: 'ติดต่อโปรแกรมหลักไม่ได้' }; }
 }
-function sendTo(id, msg){ return api('/api/send', { to: id, msg }); }
+function sendTo(id, msg){ return api('/api/send', { to: id, msg: { ...msg, mid: Math.random().toString(36).slice(2, 12) } }); }
+const seenMid = new Set();
 function ulog(t){ console.log('[tlc]', t); api('/api/log', { text: String(t).slice(0, 400) }); }
 
 /* ---------- กันหลายหน้าต่างรับสายเดียวกัน ----------
@@ -871,11 +872,12 @@ async function startCall(p){
   }, RING_TIMEOUT);
 }
 async function sendOffer(){
+  if (!call || call.state !== 'ringing' || pc) return;   // ได้ accept ซ้ำ: ข้าม
   call.state = 'connecting'; updateStatus(); clearTimeout(call.timer);
-  pc = makePC();
-  await pc.setLocalDescription(await pc.createOffer());
-  await waitIce(pc);
-  if (call) sendTo(call.peer, { t: 'offer', sdp: pc.localDescription });
+  const p = pc = makePC(), c = call;
+  await p.setLocalDescription(await p.createOffer());
+  await waitIce(p);
+  if (call === c && pc === p) sendTo(c.peer, { t: 'offer', sdp: p.localDescription });
 }
 function incoming(from, name){
   call = { peer: from, name: name || 'ไม่ทราบชื่อ', dir: 'in', state: 'ringing' };
@@ -903,13 +905,17 @@ function decline(){
   endCall(false, null, true);
 }
 async function onOffer(sdp){
-  pc = makePC();
-  await pc.setRemoteDescription(sdp);
-  await pc.setLocalDescription(await pc.createAnswer());
-  await waitIce(pc);
-  if (call) sendTo(call.peer, { t: 'answer', sdp: pc.localDescription });
+  if (pc) { ulog('ได้ offer ซ้ำ ข้าม'); return; }        // ใช้สายเดิม ไม่สร้างใหม่ทับ
+  if (!stream) stream = new MediaStream();
+  const p = pc = makePC(), c = call;
+  await p.setRemoteDescription(sdp);
+  if (p.signalingState !== 'have-remote-offer') return;
+  await p.setLocalDescription(await p.createAnswer());
+  await waitIce(p);
+  if (call === c && pc === p) sendTo(c.peer, { t: 'answer', sdp: p.localDescription });
 }
 async function onPeerMsg(from, name, m){
+  if (m.mid){ if (seenMid.has(m.mid)) return; seenMid.add(m.mid); if (seenMid.size > 300) seenMid.clear(); }
   const mine = call && call.peer === from;
   switch (m.t){
     case 'ring':
@@ -922,7 +928,7 @@ async function onPeerMsg(from, name, m){
     case 'decline': if (mine){ ulog('ปลายทางปฏิเสธ ' + (m.why || '')); addHist(call.name, 'ปลายทางไม่สะดวก'); endCall(false, 'ปลายทางไม่สะดวกรับสาย' + (m.why ? ` (${m.why})` : ''), true); } return;
     case 'busy':    if (mine){ addHist(call.name, 'ปลายทางไม่ว่าง'); endCall(false, 'ปลายทางกำลังคุยสายอื่น', true); } return;
     case 'offer':   if (mine && call.dir === 'in') await onOffer(m.sdp).catch(e => { ulog('offer ผิดพลาด ' + e.message); endCall(true, 'เชื่อมต่อไม่สำเร็จ: ' + e.message); }); return;
-    case 'answer':  if (mine && pc) await pc.setRemoteDescription(m.sdp).catch(e => { ulog('answer ผิดพลาด ' + e.message); endCall(true, 'เชื่อมต่อไม่สำเร็จ: ' + e.message); }); return;
+    case 'answer':  if (mine && pc && pc.signalingState === 'have-local-offer') await pc.setRemoteDescription(m.sdp).catch(e => { ulog('answer ผิดพลาด ' + e.message); endCall(true, 'เชื่อมต่อไม่สำเร็จ: ' + e.message); }); return;
     case 'hangup':  if (mine){ ulog('ปลายทางวางสาย ' + (m.why || '')); endCall(false, 'ปลายทางวางสายแล้ว' + (m.why ? ` (${m.why})` : '')); } return;
   }
 }

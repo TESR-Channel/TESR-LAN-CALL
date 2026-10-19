@@ -37,7 +37,7 @@ import (
 
 const (
 	appName      = "TESR LAN Call"
-	version      = "2.6.0"
+	version      = "2.6.1"
 	peerTimeout  = 8 * time.Second
 	mobileGrace  = 45 * time.Second
 	pendingTTL   = 30 * time.Second
@@ -202,6 +202,8 @@ type Endpoint struct {
 	ID, Name, Kind, Dev string
 	IP                  string // มือถือ: IP ของเครื่อง
 	clients             map[chan []byte]struct{}
+	order               []chan []byte // ลำดับหน้าต่างที่ต่อเข้ามา
+	owner               chan []byte   // หน้าต่างเดียวที่รับ-ส่งสายของ endpoint นี้ (กันหลายหน้าต่างรับสายพร้อมกัน)
 	Busy                bool
 	Left                time.Time
 	pending             []byte // สายที่เข้ามาตอนหน้าต่างยังไม่เปิด
@@ -282,6 +284,23 @@ func (s *State) settingsFor(ep *Endpoint) map[string]any {
 		m["https_error"] = s.httpsErr
 	}
 	return m
+}
+
+// ส่งข้อความโทรศัพท์ให้หน้าต่างเจ้าของสายหน้าต่างเดียว
+// (ถ้าเปิดไว้หลายหน้าต่าง แล้วทุกหน้าต่างได้สายพร้อมกัน จะแย่งกล้องและส่ง offer/answer ซ้ำจนสายหลุด)
+func sendCall(ep *Endpoint, v any) {
+	if ep.owner == nil {
+		send(ep, v)
+		return
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	select {
+	case ep.owner <- b:
+	default:
+	}
 }
 
 func send(ep *Endpoint, v any) {
@@ -404,7 +423,7 @@ func (s *State) deliver(target string, ev map[string]any) bool {
 	msg, _ := ev["msg"].(map[string]any)
 	t := str(msg, "t")
 	if len(ep.clients) > 0 {
-		send(ep, ev)
+		sendCall(ep, ev)
 		if ep == s.local && t == "ring" { // มีสายเข้า: ดึงหน้าต่างที่พับเก็บ/อยู่หลังโปรแกรมอื่นขึ้นมา
 			go func() {
 				_, _ = windowDo(s.port, "front", nil)
@@ -789,6 +808,10 @@ func (s *State) events(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	ep.clients[ch] = struct{}{}
+	ep.order = append(ep.order, ch)
+	if ep.owner == nil || !ep.Busy { // หน้าต่างล่าสุดเป็นเจ้าของสาย (ยกเว้นกำลังคุยอยู่)
+		ep.owner = ch
+	}
 	hello, _ := json.Marshal(map[string]any{"type": "hello", "settings": s.settingsFor(ep), "peers": s.peerListLocked(ep)})
 	var pending []byte
 	if ep.pending != nil && time.Since(ep.pendingAt) < pendingTTL {
@@ -812,6 +835,18 @@ func (s *State) events(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		s.mu.Lock()
 		delete(ep.clients, ch)
+		for i, c := range ep.order {
+			if c == ch {
+				ep.order = append(ep.order[:i], ep.order[i+1:]...)
+				break
+			}
+		}
+		if ep.owner == ch {
+			ep.owner = nil
+			if n := len(ep.order); n > 0 {
+				ep.owner = ep.order[n-1]
+			}
+		}
 		if len(ep.clients) == 0 {
 			ep.Busy = false
 			ep.Left = time.Now()
