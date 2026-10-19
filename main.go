@@ -37,7 +37,7 @@ import (
 
 const (
 	appName      = "TESR LAN Call"
-	version      = "2.5.0"
+	version      = "2.6.0"
 	peerTimeout  = 8 * time.Second
 	mobileGrace  = 45 * time.Second
 	pendingTTL   = 30 * time.Second

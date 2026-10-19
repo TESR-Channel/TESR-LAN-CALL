@@ -133,6 +133,8 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
 .dlg .btn{align-self:flex-end;background:var(--gold);color:#16110A;font-weight:700;border:0;border-radius:999px;padding:10px 26px;min-height:44px}
 @media (max-width:640px){header,main{padding-left:16px;padding-right:16px}.row{padding:16px}main{padding-top:20px}.tools,.tools input{width:100%}.brand img{height:42px}#self{width:34vw}.big{min-width:150px;padding:18px 30px}}
 @media (prefers-reduced-motion:reduce){.yes{animation:none}#toast{transition:none}}
+  .meter{height:6px;border-radius:4px;background:rgba(127,127,127,.25);overflow:hidden;margin:-4px 0 10px}
+  .meter>div{height:100%;width:0;background:linear-gradient(90deg,#22c55e,#facc15,#ef4444);transition:width .06s}
 </style>
 </head>
 <body>
@@ -173,6 +175,9 @@ dialog::backdrop{background:rgba(0,0,0,.65)}
       <label class="fld">ชื่อที่คนอื่นเห็น<input type="text" id="name" maxlength="60"></label>
       <label class="fld">กล้อง<select id="cam"></select></label>
       <label class="fld">ไมโครโฟน<select id="mic"></select></label>
+      <div class="meter" id="micMeterBox" title="ระดับเสียงไมค์"><div id="micMeter"></div></div>
+      <label class="fld" id="spkFld">ลำโพง<select id="spk"></select></label>
+      <button class="ghost quiet" id="spkTest" type="button">ทดสอบลำโพง / ไมค์</button>
       <label class="chk">รับสายอัตโนมัติ<input type="checkbox" id="auto"></label>
       <label class="chk desk-only">เปิดโปรแกรมเองตอนเปิดเครื่อง<input type="checkbox" id="boot"></label>
       <label class="chk desk-only">ไม่ให้คอมหลับ (มือถือ/iPad โทรเข้าได้ตลอด)<input type="checkbox" id="awake"></label>
@@ -494,8 +499,10 @@ $('#robot').onchange = async () => {
 };
 $('#awake').onchange = () => api('/api/settings', { awake: $('#awake').checked });
 $('#boot').onchange = async () => { const r = await api('/api/settings', { autostart: $('#boot').checked }); if (!r.ok) toast(r.error); };
-$('#cam').onchange = () => store.set('tlc-cam', $('#cam').value);
-$('#mic').onchange = () => store.set('tlc-mic', $('#mic').value);
+$('#cam').onchange = () => { store.set('tlc-cam', $('#cam').value); switchLive('video'); };
+$('#mic').onchange = () => { store.set('tlc-mic', $('#mic').value); switchLive('audio'); if (meterOn) startMeter(); };
+$('#spk').onchange = () => { store.set('tlc-spk', $('#spk').value); applySpeaker(); };
+$('#spkTest').onclick = testDevices;
 async function fixNet(){
   const bs = ['#fixNetBtn', '#fwFixBtn', '#fwTop'].map(s => $(s));
   const labels = bs.map(b => b.textContent);
@@ -603,15 +610,83 @@ async function listDevices(){
     const saved = store.get(key, '');
     sel.textContent = '';
     devs.filter(d => d.kind === kind).forEach((d, i) => {
-      const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `${kind === 'videoinput' ? 'กล้อง' : 'ไมค์'} ${i + 1}`;
+      const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `${kind === 'videoinput' ? 'กล้อง' : kind === 'audioinput' ? 'ไมค์' : 'ลำโพง'} ${i + 1}`;
       if (d.deviceId === saved) o.selected = true; sel.append(o);
     });
     if (!sel.options.length){ const o = document.createElement('option'); o.textContent = 'ไม่พบอุปกรณ์'; o.value = ''; sel.append(o); }
   };
   fill($('#cam'), 'videoinput', 'tlc-cam'); fill($('#mic'), 'audioinput', 'tlc-mic');
+  // เลือกลำโพงได้เฉพาะเบราว์เซอร์ที่รองรับ setSinkId (Chrome/Edge/Chromium) iPhone/iPad ใช้ลำโพงตามระบบ
+  $('#spkFld').hidden = !SINK_OK;
+  if (SINK_OK){ fill($('#spk'), 'audiooutput', 'tlc-spk'); applySpeaker(); }
   $('#flipBtn').hidden = devs.filter(d => d.kind === 'videoinput').length < 2;
 }
 navigator.mediaDevices && navigator.mediaDevices.addEventListener && navigator.mediaDevices.addEventListener('devicechange', listDevices);
+
+/* ---------- ลำโพง / ทดสอบ / สลับอุปกรณ์ระหว่างคุย ---------- */
+const SINK_OK = 'setSinkId' in HTMLMediaElement.prototype;
+async function sinkTo(el){
+  const id = $('#spk').value;
+  if (!SINK_OK || !el || !id) return;
+  try { if (el.sinkId !== id) await el.setSinkId(id); } catch (e) { console.warn('setSinkId', e); }
+}
+async function applySpeaker(){
+  await Promise.all([sinkTo($('#remote')), sinkTo(ringAudio)]);
+  const c = actx, id = $('#spk').value;   // เสียงบี๊บสำรองใช้ AudioContext
+  if (c && c.setSinkId && id) { try { await c.setSinkId(id === 'default' ? '' : id); } catch (e) {} }
+}
+
+let meterStream = null, meterRaf = 0, meterOn = false;
+function stopMeter(){
+  meterOn = false; cancelAnimationFrame(meterRaf);
+  if (meterStream) { meterStream.getTracks().forEach(t => t.stop()); meterStream = null; }
+  $('#micMeter').style.width = '0';
+}
+async function startMeter(){
+  if (meterStream) { meterStream.getTracks().forEach(t => t.stop()); meterStream = null; }
+  cancelAnimationFrame(meterRaf);
+  const c = audioCtx(); if (!c) return;
+  try {
+    const mic = $('#mic').value;
+    meterStream = (stream && stream.getAudioTracks().length) ? null
+      : await gum({ audio: mic ? { deviceId: { exact: mic } } : true });
+    const src = c.createMediaStreamSource(meterStream || stream);
+    const an = c.createAnalyser(); an.fftSize = 1024; src.connect(an);
+    const buf = new Float32Array(an.fftSize); meterOn = true;
+    const tick = () => {
+      an.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v;
+      $('#micMeter').style.width = Math.min(100, Math.round(Math.sqrt(s / buf.length) * 400)) + '%';
+      if (meterOn) meterRaf = requestAnimationFrame(tick);
+    };
+    tick();
+  } catch (e) { toast('เปิดไมค์ไม่ได้: ' + e.message); }
+}
+async function testDevices(){
+  // เล่นเสียงเรียกเข้า 2 วินาทีออกลำโพงที่เลือก + เปิดแถบระดับไมค์ 10 วินาที
+  if (call) return toast('กำลังคุยอยู่ ทดสอบหลังวางสายนะ');
+  const a = new Audio('/assets/ringtone.wav'); await sinkTo(a);
+  a.play().catch(() => toast('เล่นเสียงไม่ได้ แตะหน้าจอหนึ่งครั้งแล้วลองใหม่'));
+  setTimeout(() => { a.pause(); }, 2000);
+  await startMeter(); setTimeout(() => { if (!call) stopMeter(); }, 10000);
+}
+async function switchLive(kind){
+  if (!stream) return;   // ยังไม่ได้คุย ค่าที่เลือกจะใช้ตอนโทรครั้งถัดไป
+  const id = kind === 'video' ? $('#cam').value : $('#mic').value; if (!id) return;
+  const old = kind === 'video' ? camTrack : stream.getAudioTracks()[0];
+  try {
+    const c = kind === 'video'
+      ? { video: { deviceId: { exact: id }, width: { ideal: 1280 }, height: { ideal: 720 } } }
+      : { audio: { deviceId: { exact: id }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
+    const nt = (await gum(c)).getTracks()[0];
+    if (old) nt.enabled = old.enabled;   // คงสถานะปิดไมค์/ปิดกล้องเดิม
+    const sender = pc && pc.getSenders().find(s => s.track && s.track.kind === kind);
+    if (sender && !(kind === 'video' && screenTrack)) await sender.replaceTrack(nt);
+    if (old) { stream.removeTrack(old); old.stop(); }
+    stream.addTrack(nt);
+    if (kind === 'video') { camTrack = nt; $('#self').srcObject = stream; }
+    toast(kind === 'video' ? 'สลับกล้องแล้ว' : 'สลับไมค์แล้ว');
+  } catch (e) { toast('สลับอุปกรณ์ไม่ได้: ' + e.message); }
+}
 
 async function getStream(){
   const cam = $('#cam').value, mic = $('#mic').value;
@@ -741,7 +816,7 @@ function makePC(){
   stream.getTracks().forEach(t => p.addTrack(t, stream));
   p.ontrack = e => {
     const v = $('#remote'); if (v.srcObject === e.streams[0]) return;
-    v.srcObject = e.streams[0];
+    v.srcObject = e.streams[0]; sinkTo(v);
     const go = n => v.play().catch(err => { if (err.name === 'AbortError' && n < 4) setTimeout(() => go(n + 1), 300); else toast('แตะหน้าจอเพื่อเปิดเสียง'); });
     go(0);
   };
