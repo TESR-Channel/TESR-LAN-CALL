@@ -319,6 +319,23 @@ async function api(path, body){
   } catch (e) { return { ok: false, error: 'ติดต่อโปรแกรมหลักไม่ได้' }; }
 }
 function sendTo(id, msg){ return api('/api/send', { to: id, msg }); }
+function ulog(t){ console.log('[tlc]', t); api('/api/log', { text: String(t).slice(0, 400) }); }
+
+/* ---------- กันหลายหน้าต่างรับสายเดียวกัน ----------
+   ถ้าเปิดโปรแกรมไว้หลายหน้าต่าง (เช่น หน้าต่างโหมดหุ่นยนต์ + หน้าต่างที่เปิดเพิ่ม) ทุกหน้าต่างจะได้สายเข้าพร้อมกัน
+   แล้วแย่งกล้อง/ไมค์ หน้าต่างที่แย่งไม่ได้จะส่ง "ปฏิเสธสาย" ทำให้สายหลุดทันที จึงให้หน้าต่างเดียวเท่านั้นที่ถือสาย */
+let callLockRelease = null;
+function claimCall(){
+  if (!navigator.locks) return Promise.resolve(true);
+  return new Promise(res => {
+    navigator.locks.request('tlc-call', { ifAvailable: true }, lock => {
+      if (!lock) { res(false); return; }
+      res(true);
+      return new Promise(r => { callLockRelease = r; });
+    }).catch(() => res(true));
+  });
+}
+function releaseCall(){ if (callLockRelease){ callLockRelease(); callLockRelease = null; } }
 function toast(t){ const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 3800); }
 function mmss(s){ return String(s / 60 | 0).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
 function waitIce(p){
@@ -688,6 +705,15 @@ async function switchLive(kind){
   } catch (e) { toast('สลับอุปกรณ์ไม่ได้: ' + e.message); }
 }
 
+async function getStreamSafe(){
+  try { return await getStream(); } catch (e) { ulog('getStream ที่เลือกไว้ไม่ได้: ' + e.name + ' ' + e.message); }
+  for (const c of [{ audio: true, video: true }, { audio: true }, { video: true }]){
+    try { const s = await gum(c); ulog('ใช้อุปกรณ์สำรอง ' + JSON.stringify(c)); return s; } catch (e) {}
+  }
+  ulog('ไม่มีกล้อง/ไมค์ที่ใช้ได้ รับสายแบบฟัง/ดูอย่างเดียว');
+  toast('เปิดกล้องและไมค์ไม่ได้ รับสายแบบดู/ฟังอย่างเดียว');
+  return new MediaStream();
+}
 async function getStream(){
   const cam = $('#cam').value, mic = $('#mic').value;
   const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(mic ? { deviceId: { exact: mic } } : {}) };
@@ -814,6 +840,7 @@ function markIncall(){
 function makePC(){
   const p = new RTCPeerConnection(RTC);
   stream.getTracks().forEach(t => p.addTrack(t, stream));
+  ['audio', 'video'].forEach(k => { if (!stream.getTracks().some(t => t.kind === k)) p.addTransceiver(k, { direction: 'recvonly' }); });
   p.ontrack = e => {
     const v = $('#remote'); if (v.srcObject === e.streams[0]) return;
     v.srcObject = e.streams[0]; sinkTo(v);
@@ -823,15 +850,17 @@ function makePC(){
   p.onconnectionstatechange = () => {
     if (p !== pc) return;
     if (p.connectionState === 'connected') markIncall();
-    if (p.connectionState === 'failed') endCall(true, 'การเชื่อมต่อขาดหาย');
+    ulog('WebRTC ' + p.connectionState + ' / ICE ' + p.iceConnectionState);
+    if (p.connectionState === 'failed') endCall(true, 'การเชื่อมต่อภาพ/เสียงไม่สำเร็จ (เครือข่ายกั้น)');
   };
   return p;
 }
 
 async function startCall(p){
   if (call) return;
+  if (!(await claimCall())) return toast('มีอีกหน้าต่างของโปรแกรมนี้กำลังคุยสายอยู่');
   unlockSound();
-  try { stream = await getStream(); } catch (e) { toast('เปิดไมค์ไม่ได้: ' + e.message); return; }
+  try { stream = await getStream(); } catch (e) { releaseCall(); toast('เปิดไมค์ไม่ได้: ' + e.message); return; }
   camTrack = stream.getVideoTracks()[0] || null;
   call = { peer: p.id, name: p.name, dir: 'out', state: 'ringing' };
   setBusy(true); renderPeers(); showCall();
@@ -861,8 +890,10 @@ function incoming(from, name){
 async function accept(){
   if (!call || call.state !== 'ringing') return;
   ringStop(); call.state = 'connecting';
-  try { stream = await getStream(); } catch (e) { sendTo(call.peer, { t: 'decline' }); return endCall(false, 'เปิดไมค์ไม่ได้: ' + e.message); }
+  stream = await getStreamSafe();
+  if (!call) { stream.getTracks().forEach(t => t.stop()); stream = null; return; }   // ปลายทางวางไปก่อน
   camTrack = stream.getVideoTracks()[0] || null;
+  ulog('รับสายจาก ' + call.name + ' ด้วย ' + stream.getTracks().map(t => t.kind + ':' + t.label).join(', '));
   showCall();
   sendTo(call.peer, { t: 'accept' });
 }
@@ -883,19 +914,22 @@ async function onPeerMsg(from, name, m){
   switch (m.t){
     case 'ring':
       if (call){ sendTo(from, { t: 'busy' }); addHist(name || '?', 'ไม่ได้รับสาย (ไม่ว่าง)'); return; }
+      if (!(await claimCall())) { ulog('หน้าต่างอื่นรับสายนี้แล้ว หน้าต่างนี้ข้าม'); return; }
+      if (call) { releaseCall(); return; }
       return incoming(from, name);
     case 'cancel':  if (mine && call.state === 'ringing'){ const nm = call.name; addHist(nm, 'ไม่ได้รับสาย', from); endCall(false, `สายที่ไม่ได้รับจาก ${nm}`, true); if (document.hidden || !document.hasFocus()) notify('สายที่ไม่ได้รับ', `${nm} โทรหาคุณ`); } return;
     case 'accept':  if (mine && call.dir === 'out') await sendOffer(); return;
-    case 'decline': if (mine){ addHist(call.name, 'ปลายทางไม่สะดวก'); endCall(false, 'ปลายทางไม่สะดวกรับสาย', true); } return;
+    case 'decline': if (mine){ ulog('ปลายทางปฏิเสธ ' + (m.why || '')); addHist(call.name, 'ปลายทางไม่สะดวก'); endCall(false, 'ปลายทางไม่สะดวกรับสาย' + (m.why ? ` (${m.why})` : ''), true); } return;
     case 'busy':    if (mine){ addHist(call.name, 'ปลายทางไม่ว่าง'); endCall(false, 'ปลายทางกำลังคุยสายอื่น', true); } return;
-    case 'offer':   if (mine && call.dir === 'in') await onOffer(m.sdp); return;
-    case 'answer':  if (mine && pc) await pc.setRemoteDescription(m.sdp); return;
-    case 'hangup':  if (mine) endCall(false, 'ปลายทางวางสายแล้ว'); return;
+    case 'offer':   if (mine && call.dir === 'in') await onOffer(m.sdp).catch(e => { ulog('offer ผิดพลาด ' + e.message); endCall(true, 'เชื่อมต่อไม่สำเร็จ: ' + e.message); }); return;
+    case 'answer':  if (mine && pc) await pc.setRemoteDescription(m.sdp).catch(e => { ulog('answer ผิดพลาด ' + e.message); endCall(true, 'เชื่อมต่อไม่สำเร็จ: ' + e.message); }); return;
+    case 'hangup':  if (mine){ ulog('ปลายทางวางสาย ' + (m.why || '')); endCall(false, 'ปลายทางวางสายแล้ว' + (m.why ? ` (${m.why})` : '')); } return;
   }
 }
 function endCall(notify, msg, logged){
   if (!call) return;
-  if (notify) sendTo(call.peer, { t: call.state === 'ringing' && call.dir === 'out' ? 'cancel' : 'hangup' });
+  ulog(`จบสาย ${call.name} [${call.dir}/${call.state}] ${msg || ''}`);
+  if (notify) sendTo(call.peer, { t: call.state === 'ringing' && call.dir === 'out' ? 'cancel' : 'hangup', why: msg && msg !== 'วางสายแล้ว' ? msg : undefined });
   if (!logged) addHist(call.name, call.start ? `คุย ${mmss(Math.floor((Date.now() - call.start) / 1000))}` : 'ยกเลิก');
   clearTimeout(call.timer); clearInterval(tickIv); ringStop();
   if (pc){ pc.close(); pc = null; }
@@ -904,7 +938,7 @@ function endCall(notify, msg, logged){
   $('#remote').srcObject = null; $('#self').srcObject = null;
   $('#incoming').classList.remove('show'); $('#callview').classList.remove('show');
   ['#micBtn', '#camBtn', '#shareBtn'].forEach(s => $(s).classList.remove('offst'));
-  call = null; setBusy(false); renderPeers();
+  call = null; setBusy(false); renderPeers(); releaseCall();
   if (msg) toast(msg);
 }
 

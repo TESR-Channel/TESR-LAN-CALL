@@ -877,6 +877,13 @@ func (s *State) api(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/api/send":
 		s.apiSend(w, ep, d)
+	case "/api/log": // บันทึกเหตุการณ์จากหน้าโปรแกรมลง log.txt (ไว้หาสาเหตุสายหลุด)
+		t := str(d, "text")
+		if len(t) > 400 {
+			t = t[:400]
+		}
+		log.Printf("[ui %s] %s", ep.Name, strings.ReplaceAll(t, "\n", " "))
+		writeJSON(w, 200, map[string]any{"ok": true})
 	case "/api/status":
 		s.mu.Lock()
 		ep.Busy, _ = d["busy"].(bool)
